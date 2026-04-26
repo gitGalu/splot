@@ -1,0 +1,2 @@
+dev:
+  run: npm run tauri:dev
