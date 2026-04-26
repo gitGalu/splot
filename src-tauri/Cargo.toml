@@ -2,9 +2,10 @@
 name = "splot"
 version = "0.1.0"
 description = "Splot — a calm, minimal workspace editor"
-authors = ["Splot"]
+authors = ["Michał Galiński"]
 edition = "2021"
 rust-version = "1.77"
+license = "MIT"
 
 [lib]
 name = "splot_lib"

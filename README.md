@@ -60,4 +60,8 @@ src-tauri/                Rust backend
   resources/workspace/    bundled sample workspace (seeded on first run)
 ```
 
-See `ARCHITECTURE.md` for the design rationale
+See `ARCHITECTURE.md` for the design rationale.
+
+## License
+
+MIT — see `LICENSE`.
