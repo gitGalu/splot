@@ -39,6 +39,20 @@ Subsequent launches read from and write to that copy. The bundled sample is only
 
 Supported file types for editing: `.md`, `.markdown`, `.txt`.
 
+## Installing on Linux
+
+Splot is built on Tauri 2, which links against **WebKitGTK 4.1** and **libsoup3** at runtime. These are present out of the box on Ubuntu 22.04+ and Fedora 39+.
+
+On RHEL 9 / Rocky Linux 9 / AlmaLinux 9, enable EPEL and CRB before installing the `.rpm`:
+
+```bash
+sudo dnf install -y epel-release
+sudo dnf config-manager --set-enabled crb
+sudo dnf install -y ./Splot-*.rpm
+```
+
+Without EPEL, `dnf` will refuse to install due to missing `webkit2gtk4.1` / `libsoup3` dependencies.
+
 ## Shortcuts
 
 - `⌘S` / `Ctrl+S` — save current file
