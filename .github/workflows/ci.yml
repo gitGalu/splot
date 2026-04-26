@@ -1,19 +1,11 @@
-name: Release
+name: Build (manual)
 
-# Triggered by pushing a `v*` tag. Builds for all platforms and creates a
-# DRAFT GitHub Release with the installers attached. You then review and
-# publish the draft from the GitHub UI.
-#
-# For test builds without creating a release, use the "Build (manual)"
-# workflow — it produces the same artifacts as workflow run downloads.
+# Manual cross-platform build. Produces installer artifacts you can download
+# from the workflow run page. Does NOT create a GitHub Release — that's the
+# job of release.yml, triggered by pushing a `v*` tag.
 
 on:
-  push:
-    tags:
-      - "v*"
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
   build:
@@ -95,13 +87,21 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build Tauri app & upload to draft release
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Splot ${{ github.ref_name }}"
-          releaseDraft: true
-          prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: splot-${{ matrix.name }}
+          path: |
+            src-tauri/target/**/release/bundle/**/*.dmg
+            src-tauri/target/**/release/bundle/**/*.app
+            src-tauri/target/**/release/bundle/**/*.AppImage
+            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/**/release/bundle/**/*.rpm
+            src-tauri/target/**/release/bundle/**/*.msi
+            src-tauri/target/**/release/bundle/**/*.exe
+          if-no-files-found: warn
