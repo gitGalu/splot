@@ -34,36 +34,12 @@ jobs:
             args: ""
             name: windows-x64
 
-          # RPM build inside a Rocky 9 container on an Ubuntu runner.
-          # Produces an .rpm that installs cleanly on RHEL 9.x, Rocky 9, AlmaLinux 9.
-          - platform: ubuntu-22.04
-            args: "--bundles rpm"
-            name: linux-rpm
-            container: rockylinux:9
-
     runs-on: ${{ matrix.platform }}
-    container: ${{ matrix.container }}
     steps:
-      - name: Bootstrap Rocky 9 container
-        if: matrix.container == 'rockylinux:9'
-        run: |
-          dnf install -y epel-release dnf-plugins-core
-          dnf config-manager --set-enabled crb
-          dnf install -y \
-            gcc gcc-c++ make file rpm-build \
-            git curl wget tar xz \
-            openssl-devel \
-            webkit2gtk4.1-devel \
-            gtk3-devel \
-            libsoup3-devel \
-            librsvg2-devel \
-            patchelf \
-            nodejs npm
-
       - uses: actions/checkout@v4
 
       - name: Install Linux build dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04' && matrix.container == ''
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \

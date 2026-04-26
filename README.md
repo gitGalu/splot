@@ -41,17 +41,12 @@ Supported file types for editing: `.md`, `.markdown`, `.txt`.
 
 ## Installing on Linux
 
-Splot is built on Tauri 2, which links against **WebKitGTK 4.1** and **libsoup3** at runtime. These are present out of the box on Ubuntu 22.04+ and Fedora 39+.
+Splot is built on Tauri 2, which links against **WebKitGTK 4.1** and **libsoup3** at runtime. Releases ship two Linux artifacts:
 
-On RHEL 9 / Rocky Linux 9 / AlmaLinux 9, enable EPEL and CRB before installing the `.rpm`:
+- **`.deb`** — for Ubuntu 22.04+, Debian 12+, and derivatives (Mint, Pop!_OS).
+- **`.AppImage`** — single-file binary that runs on any glibc-2.34+ distro that has WebKitGTK 4.1 / libsoup3 installed system-wide. Works on Fedora 39+, Arch, openSUSE Tumbleweed.
 
-```bash
-sudo dnf install -y epel-release
-sudo dnf config-manager --set-enabled crb
-sudo dnf install -y ./Splot-*.rpm
-```
-
-Without EPEL, `dnf` will refuse to install due to missing `webkit2gtk4.1` / `libsoup3` dependencies.
+RHEL 9 / Rocky 9 / AlmaLinux 9 are not officially supported: their package repositories do not provide WebKitGTK 4.1, so neither the `.AppImage` nor a hypothetical `.rpm` would resolve dependencies. Flatpak distribution is the planned long-term answer for these distros.
 
 ## Shortcuts
 
