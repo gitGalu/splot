@@ -77,6 +77,15 @@ const pl: Dict = {
   "qo.hint.new3": " na końcu dla pustego folderu. ",
   "qo.hint.new4": " dodane, gdy brak rozszerzenia.",
 
+  // Quick open — symbols (headings of the open file)
+  "qo.mode.symbol": "Nagłówki",
+  "qo.placeholder.symbol": "Skocz do nagłówka…",
+  "qo.empty.noHeadings": "Plik nie ma nagłówków.",
+  "qo.empty.noFile": "Otwórz plik, aby przeglądać nagłówki.",
+  "qo.hint.symbol": "Skok do nagłówka w bieżącym pliku. Usuń {prefix}, żeby szukać po nazwie.",
+  "qo.hint.files3": " · ",
+  "qo.hint.files4": " skok do nagłówka.",
+
   // Command palette
   "cmd.mode": "Komenda",
   "cmd.placeholder": "Wpisz komendę…",
@@ -171,6 +180,7 @@ const pl: Dict = {
   "help.section.formatting": "Formatowanie markdown",
   "help.nav.quickOpen": "Szybkie otwieranie plików",
   "help.nav.contentSearch": "Szukaj w zawartości (po szybkim otwieraniu wpisz >)",
+  "help.nav.symbolJump": "Skok do nagłówka (po szybkim otwieraniu wpisz @)",
   "help.nav.commandPalette": "Paleta komend",
   "help.nav.settings": "Ustawienia",
   "help.nav.help": "Ta pomoc",

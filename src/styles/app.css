@@ -900,6 +900,19 @@
   gap: 2px;
 }
 
+.qo-row--symbol .qo-symbol-level {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-ui-small);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  min-width: 3.5ch;
+}
+
+.qo-row--symbol .qo-name {
+  max-width: none;
+  flex: 1 1 auto;
+}
+
 .qo-content-snippet {
   font-family: var(--font-mono);
   font-size: var(--font-size-ui-small);

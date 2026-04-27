@@ -14,8 +14,10 @@ import { WorkspaceSwitcher } from "../features/workspace/WorkspaceSwitcher";
 import { MoveFileModal } from "../features/workspace/MoveFileModal";
 import { EditorPane } from "../features/editor/EditorPane";
 import { sortTasks } from "../features/editor/task-toggle";
-import type { EditorView } from "@codemirror/view";
+import { EditorSelection } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { openSearchPanel } from "@codemirror/search";
+import type { Heading } from "../services/headings";
 import { Breadcrumb } from "../components/Breadcrumb";
 import { EmptyState } from "../components/EmptyState";
 import { Resizer } from "../components/Resizer";
@@ -708,6 +710,18 @@ export function App() {
             handleOpen(path);
           }}
           onCreate={handleCreate}
+          openDoc={open?.current}
+          onJumpToHeading={(heading: Heading) => {
+            const view = editorViewRef.current;
+            if (!view) return;
+            const docLen = view.state.doc.length;
+            const pos = Math.min(heading.offset, docLen);
+            view.dispatch({
+              selection: EditorSelection.cursor(pos),
+              effects: EditorView.scrollIntoView(pos, { y: "center" }),
+            });
+            view.focus();
+          }}
           initialInput={quickOpenInitial}
           onClose={() => setQuickOpen(false)}
         />

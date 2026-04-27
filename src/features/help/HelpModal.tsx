@@ -27,6 +27,7 @@ const SECTIONS: Section[] = [
     items: [
       { spec: "Mod+P", labelKey: "help.nav.quickOpen" },
       { literal: [...formatShortcut("Mod+P"), ">"], labelKey: "help.nav.contentSearch" },
+      { literal: [...formatShortcut("Mod+P"), "@"], labelKey: "help.nav.symbolJump" },
       { spec: "Mod+Shift+P", labelKey: "help.nav.commandPalette" },
       { spec: "Mod+,", labelKey: "help.nav.settings" },
       { spec: "Mod+/", labelKey: "help.nav.help" },

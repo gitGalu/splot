@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { FileIndex, FileSearchResult } from "../../services/fileIndex";
 import type { ContentHit } from "../../types/workspace";
+import {
+  parseHeadings,
+  searchHeadings,
+  type Heading,
+  type HeadingSearchResult,
+} from "../../services/headings";
 import { HighlightedText } from "./HighlightedText";
 import { t } from "../../i18n/i18n";
 
@@ -10,6 +16,10 @@ interface Props {
   onClose: () => void;
   searchContent: (query: string) => Promise<ContentHit[]>;
   onCreate: (path: string) => Promise<void>;
+  /** Source of the currently open document, for symbol mode. */
+  openDoc?: string;
+  /** Jump to a heading in the open document. */
+  onJumpToHeading?: (heading: Heading) => void;
   initialInput?: string;
 }
 
@@ -17,11 +27,14 @@ const MAX_RESULTS = 50;
 const CONTENT_DEBOUNCE_MS = 150;
 const CONTENT_MIN_CHARS = 2;
 
-type Mode = "files" | "content" | "new";
+type Mode = "files" | "content" | "new" | "symbol";
 
 function parseQuery(raw: string): { mode: Mode; query: string } {
   if (raw.startsWith(">")) {
     return { mode: "content", query: raw.slice(1) };
+  }
+  if (raw.startsWith("@")) {
+    return { mode: "symbol", query: raw.slice(1) };
   }
   if (raw.startsWith("+")) {
     const rest = raw.slice(1);
@@ -36,6 +49,8 @@ export function QuickOpen({
   onClose,
   searchContent,
   onCreate,
+  openDoc,
+  onJumpToHeading,
   initialInput = "",
 }: Props) {
   const [input, setInput] = useState(initialInput);
@@ -51,6 +66,16 @@ export function QuickOpen({
   const fileResults = useMemo<FileSearchResult[]>(
     () => (mode === "files" ? index.search(query, MAX_RESULTS) : []),
     [index, mode, query],
+  );
+
+  // Headings are parsed once per open-doc snapshot; cheap on real-world files.
+  const headings = useMemo<Heading[]>(
+    () => (openDoc != null ? parseHeadings(openDoc) : []),
+    [openDoc],
+  );
+  const headingResults = useMemo<HeadingSearchResult[]>(
+    () => (mode === "symbol" ? searchHeadings(headings, query, MAX_RESULTS) : []),
+    [headings, mode, query],
   );
 
   const [contentHits, setContentHits] = useState<ContentHit[]>([]);
@@ -111,7 +136,9 @@ export function QuickOpen({
       ? fileResults.length
       : mode === "content"
         ? contentHits.length
-        : 0;
+        : mode === "symbol"
+          ? headingResults.length
+          : 0;
 
   useEffect(() => {
     // Empty query + no keyboard navigation yet → no row is highlighted.
@@ -145,6 +172,14 @@ export function QuickOpen({
         if (h) onSelect(h.path);
         return;
       }
+      if (mode === "symbol") {
+        const h = headingResults[idx];
+        if (h && onJumpToHeading) {
+          onJumpToHeading(h.heading);
+          onClose();
+        }
+        return;
+      }
       // mode === "new"
       const trimmed = query.trim();
       if (!trimmed || creating) return;
@@ -158,7 +193,18 @@ export function QuickOpen({
         setCreating(false);
       }
     },
-    [mode, fileResults, contentHits, onSelect, onCreate, query, creating],
+    [
+      mode,
+      fileResults,
+      contentHits,
+      headingResults,
+      onSelect,
+      onJumpToHeading,
+      onClose,
+      onCreate,
+      query,
+      creating,
+    ],
   );
 
   const onKeyDown = useCallback(
@@ -214,7 +260,9 @@ export function QuickOpen({
               ? t("qo.mode.content")
               : mode === "new"
                 ? t("qo.mode.new")
-                : t("qo.mode.files")}
+                : mode === "symbol"
+                  ? t("qo.mode.symbol")
+                  : t("qo.mode.files")}
           </span>
           <input
             ref={inputRef}
@@ -225,7 +273,9 @@ export function QuickOpen({
                 ? t("qo.placeholder.content")
                 : mode === "new"
                   ? t("qo.placeholder.new")
-                  : t("qo.placeholder.files")
+                  : mode === "symbol"
+                    ? t("qo.placeholder.symbol")
+                    : t("qo.placeholder.files")
             }
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -243,6 +293,8 @@ export function QuickOpen({
           contentError,
           createError,
           creating,
+          headingResults,
+          hasOpenDoc: openDoc != null,
           active,
           listRef,
           setActive,
@@ -251,6 +303,8 @@ export function QuickOpen({
         <div className="qo-hint">
           {mode === "content" ? (
             <>{contentHintWithKbd()}</>
+          ) : mode === "symbol" ? (
+            <>{symbolHintWithKbd()}</>
           ) : mode === "new" ? (
             <>
               <kbd>Enter</kbd>
@@ -268,6 +322,9 @@ export function QuickOpen({
               {t("qo.hint.files1")}
               <kbd>+</kbd>
               {t("qo.hint.files2")}
+              {t("qo.hint.files3")}
+              <kbd>@</kbd>
+              {t("qo.hint.files4")}
             </>
           )}
         </div>
@@ -285,6 +342,8 @@ interface BodyArgs {
   contentError: string | null;
   createError: string | null;
   creating: boolean;
+  headingResults: HeadingSearchResult[];
+  hasOpenDoc: boolean;
   active: number;
   listRef: React.MutableRefObject<HTMLUListElement | null>;
   setActive: (idx: number) => void;
@@ -301,6 +360,8 @@ function renderBody(args: BodyArgs) {
     contentError,
     createError,
     creating,
+    headingResults,
+    hasOpenDoc,
     active,
     listRef,
     setActive,
@@ -309,6 +370,45 @@ function renderBody(args: BodyArgs) {
 
   if (mode === "new") {
     return renderNewBody({ query, createError, creating });
+  }
+
+  if (mode === "symbol") {
+    if (!hasOpenDoc) {
+      return <div className="qo-empty">{t("qo.empty.noFile")}</div>;
+    }
+    if (headingResults.length === 0) {
+      return (
+        <div className="qo-empty">
+          {query.trim() ? t("qo.empty.noMatches") : t("qo.empty.noHeadings")}
+        </div>
+      );
+    }
+    return (
+      <ul className="qo-list" ref={listRef} role="listbox">
+        {headingResults.map((r, idx) => (
+          <li
+            key={`${r.heading.line}:${r.heading.offset}`}
+            data-index={idx}
+            role="option"
+            aria-selected={idx === active}
+            className={`qo-row qo-row--symbol ${idx === active ? "is-active" : ""}`}
+            onMouseEnter={() => setActive(idx)}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              commit(idx);
+            }}
+          >
+            <span className={`qo-symbol-level qo-symbol-level--${r.heading.level}`}>
+              {"#".repeat(r.heading.level)}
+            </span>
+            <span className="qo-name">
+              <HighlightedText text={r.heading.title} positions={r.positions} />
+            </span>
+            <span className="qo-path">:{r.heading.line}</span>
+          </li>
+        ))}
+      </ul>
+    );
   }
 
   if (mode === "content") {
@@ -452,6 +552,16 @@ function contentHintWithKbd(): ReactElement[] {
   parts.forEach((p, i) => {
     out.push(<span key={`t${i}`}>{p}</span>);
     if (i < parts.length - 1) out.push(<kbd key={`k${i}`}>&gt;</kbd>);
+  });
+  return out;
+}
+
+function symbolHintWithKbd(): ReactElement[] {
+  const parts = t("qo.hint.symbol", { prefix: "\u0000" }).split("\u0000");
+  const out: ReactElement[] = [];
+  parts.forEach((p, i) => {
+    out.push(<span key={`t${i}`}>{p}</span>);
+    if (i < parts.length - 1) out.push(<kbd key={`k${i}`}>@</kbd>);
   });
   return out;
 }
