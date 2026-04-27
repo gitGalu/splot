@@ -10,6 +10,7 @@ import { splotEditorTheme, splotHighlightStyle } from "./theme";
 import { paragraphSelection } from "./paragraph-selection";
 import { taskToggleWithAutoSort } from "./task-toggle";
 import { linkExtension } from "./links";
+import { lineCommandsKeymap } from "./line-commands";
 import { FONT_STACKS, getSettings, useSettings } from "../../services/settings";
 import { getCursor, setCursor } from "../../services/cursorMemory";
 
@@ -35,8 +36,14 @@ export function EditorPane({
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const { fullWidthEditor, editorFont, editorFontSize, editorLineHeight, linkOpenMode } =
-    useSettings();
+  const {
+    fullWidthEditor,
+    editorFont,
+    editorFontSize,
+    editorLineHeight,
+    linkOpenMode,
+    ideLineShortcuts,
+  } = useSettings();
 
   useEffect(() => {
     const host = hostRef.current;
@@ -77,6 +84,7 @@ export function EditorPane({
 
     const extensions: Extension[] = [
       history(),
+      ...(ideLineShortcuts ? [lineCommandsKeymap] : []),
       search({ top: true }),
       EditorState.phrases.of({
         Find: "Znajdź",
@@ -159,7 +167,7 @@ export function EditorPane({
     };
     // Recreate the editor when the file identity changes so extensions match.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file.path]);
+  }, [file.path, ideLineShortcuts]);
 
   // Keep the document in sync when the outer value is replaced (e.g. after save
   // revert or switching files that reuse the same path — rare, but correct).

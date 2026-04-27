@@ -266,6 +266,30 @@ export function SettingsPanel({ onClose }: Props) {
             </label>
           </section>
           <section className="settings-section">
+            <h3 className="settings-section-title">
+              {t("settings.section.shortcuts")}
+            </h3>
+            <label className="settings-row">
+              <input
+                type="checkbox"
+                checked={settings.ideLineShortcuts}
+                onChange={(e) =>
+                  setSetting("ideLineShortcuts", e.target.checked)
+                }
+              />
+              <span className="settings-row-main">
+                <span className="settings-row-label">
+                  {t("settings.ideLineShortcuts.label")}
+                </span>
+                <span className="settings-row-help">
+                  {t("settings.ideLineShortcuts.help", {
+                    mod: formatShortcutString("Mod"),
+                  })}
+                </span>
+              </span>
+            </label>
+          </section>
+          <section className="settings-section">
             <h3 className="settings-section-title">{t("settings.section.tasks")}</h3>
             <label className="settings-row">
               <input

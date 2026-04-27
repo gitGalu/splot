@@ -155,6 +155,10 @@ const pl: Dict = {
   "settings.autoSortTasks.label": "Przesuwaj zrobione zadania na koniec listy",
   "settings.autoSortTasks.help":
     "Gdy włączone, zaznaczenie checkboxa przenosi zadanie na koniec listy.",
+  "settings.section.shortcuts": "Skróty",
+  "settings.ideLineShortcuts.label": "Skróty linii w stylu VS Code",
+  "settings.ideLineShortcuts.help":
+    "Gdy włączone: {mod}+D usuwa wiersz, {mod}+Shift+↑/↓ duplikuje, Alt+Shift+↑/↓ przenosi. Nadpisuje domyślne skróty CodeMirror.",
 
   // Help
   "help.title": "Pomoc",

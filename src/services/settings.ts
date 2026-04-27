@@ -23,6 +23,8 @@ export interface Settings {
   autoSortDoneTasks: boolean;
   /** How clicking a link in the editor behaves. */
   linkOpenMode: LinkOpenMode;
+  /** When true, VS Code–style line editing shortcuts (delete/duplicate/move). */
+  ideLineShortcuts: boolean;
 }
 
 export const AUTOSAVE_MIN_MS = 500;
@@ -43,6 +45,7 @@ const DEFAULTS: Settings = {
   showTrash: false,
   autoSortDoneTasks: false,
   linkOpenMode: "modClick",
+  ideLineShortcuts: false,
 };
 
 export const FONT_STACKS: Record<FontChoice, string> = {
