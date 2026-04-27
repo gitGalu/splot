@@ -23,10 +23,17 @@ export interface FileIndex {
 
 const DEFAULT_LIMIT = 50;
 
+const TRASH_DIR_NAME = ".trash";
+
 export function buildFileIndex(roots: WorkspaceNode[]): FileIndex {
   const files: FileRef[] = [];
-  const walk = (nodes: WorkspaceNode[]) => {
+  const walk = (nodes: WorkspaceNode[], depth: number) => {
     for (const node of nodes) {
+      // Trash lives at workspace root; never index its contents even when the
+      // user has chosen to show it in the tree.
+      if (depth === 0 && node.kind === "directory" && node.name === TRASH_DIR_NAME) {
+        continue;
+      }
       if (node.kind === "file") {
         files.push({
           path: node.path,
@@ -35,11 +42,11 @@ export function buildFileIndex(roots: WorkspaceNode[]): FileIndex {
           size: node.size,
         });
       } else {
-        walk(node.children);
+        walk(node.children, depth + 1);
       }
     }
   };
-  walk(roots);
+  walk(roots, 0);
 
   const byPath = new Map(files.map((f) => [f.path, f]));
 
