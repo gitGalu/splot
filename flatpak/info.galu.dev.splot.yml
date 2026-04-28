@@ -29,8 +29,11 @@ build-options:
   append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
   env:
     CARGO_HOME: /run/build/splot/cargo
+    # flatpak-node-generator emits the npm tarball cache at this path.
+    # XDG_CACHE_HOME is for Electron / node-gyp headers (unused here, but
+    # keeping it pointed at a writable subdir avoids accidental $HOME use).
     XDG_CACHE_HOME: /run/build/splot/flatpak-node/cache
-    npm_config_cache: /run/build/splot/flatpak-node/cache/npm-cache
+    npm_config_cache: /run/build/splot/flatpak-node/npm-cache
     npm_config_offline: 'true'
     RUSTFLAGS: -C link-arg=-Wl,-rpath,/app/lib
 
