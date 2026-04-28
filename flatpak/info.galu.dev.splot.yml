@@ -1,0 +1,72 @@
+id: info.galu.dev.splot
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node20
+command: splot
+
+finish-args:
+  # Wayland and X11 fallback
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # GPU and rendering
+  - --device=dri
+  # Network for opening links and Tauri runtime
+  - --share=network
+  # File access — Obsidian-style: home + common external mount points.
+  # Workspaces can live anywhere the user has write access.
+  - --filesystem=home
+  - --filesystem=/mnt
+  - --filesystem=/media
+  - --filesystem=/run/media
+  # Open URLs in user's browser
+  - --talk-name=org.freedesktop.portal.Desktop
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
+  build-args:
+    - --share=network
+  env:
+    CARGO_HOME: /run/build/splot/cargo
+    RUSTFLAGS: -C link-arg=-Wl,-rpath,/app/lib
+
+modules:
+  - name: splot
+    buildsystem: simple
+    sources:
+      - type: dir
+        path: ..
+      # Generated lockfile sources (offline cargo + npm) are appended to this
+      # manifest by the CI workflow. Locally these can be generated with:
+      #   flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
+      #   flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json
+      - cargo-sources.json
+      - node-sources.json
+
+    build-commands:
+      # Install npm dependencies offline from the generated source bundle
+      - npm ci --offline --no-audit --no-fund --prefer-offline
+
+      # Build frontend
+      - npm run build
+
+      # Build the Tauri app — only the binary, no bundles
+      - cd src-tauri && cargo build --release --offline --frozen
+      - install -Dm755 src-tauri/target/release/splot /app/bin/splot
+
+      # Desktop entry
+      - install -Dm644 flatpak/info.galu.dev.splot.desktop
+        /app/share/applications/info.galu.dev.splot.desktop
+
+      # AppStream metainfo
+      - install -Dm644 flatpak/info.galu.dev.splot.metainfo.xml
+        /app/share/metainfo/info.galu.dev.splot.metainfo.xml
+
+      # Icons (use the highest-quality source as 256x256, plus the dedicated 128x128)
+      - install -Dm644 src-tauri/icons/128x128.png
+        /app/share/icons/hicolor/128x128/apps/info.galu.dev.splot.png
+      - install -Dm644 src-tauri/icons/icon.png
+        /app/share/icons/hicolor/256x256/apps/info.galu.dev.splot.png

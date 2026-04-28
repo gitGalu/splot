@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>info.galu.dev.splot</id>
+  <name>Splot</name>
+  <summary>A calm, minimal workspace editor</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="info.galu.dev">
+    <name>Michał Galiński</name>
+  </developer>
+
+  <description>
+    <p>
+      Splot is a calm, minimal, text-first workspace editor for notes, essays,
+      research, and long-form writing. It works with plain Markdown files in
+      folders you choose, with no proprietary database or lock-in.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Quick file navigation with fuzzy search</li>
+      <li>Full-text search across the workspace</li>
+      <li>Heading outline jump (Cmd/Ctrl+P, then @)</li>
+      <li>Multiple workspaces</li>
+      <li>Light and dark themes that follow the system</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">info.galu.dev.splot.desktop</launchable>
+
+  <url type="homepage">https://github.com/gitGalu/splot</url>
+  <url type="bugtracker">https://github.com/gitGalu/splot/issues</url>
+  <url type="vcs-browser">https://github.com/gitGalu/splot</url>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.2.0" date="2026-04-28" />
+  </releases>
+</component>

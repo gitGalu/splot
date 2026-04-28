@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Splot
+GenericName=Markdown Editor
+Comment=A calm, minimal workspace editor for notes and long-form writing
+Exec=splot
+Icon=info.galu.dev.splot
+Terminal=false
+Categories=Office;TextEditor;Utility;
+MimeType=text/markdown;text/plain;
+StartupWMClass=Splot
+Keywords=markdown;notes;editor;writing;

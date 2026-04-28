@@ -81,3 +81,48 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  flatpak:
+    # Built separately because flatpak-builder needs its own container with
+    # the GNOME runtime/SDK preinstalled. Output is a single .flatpak bundle
+    # that installs on RHEL, Fedora, Ubuntu, openSUSE, etc. — independent of
+    # the host's glibc, which is why .AppImage doesn't work on RHEL 9.
+    runs-on: ubuntu-22.04
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:gnome-46
+      options: --privileged
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python helpers
+        run: |
+          dnf install -y python3-pip python3-aiohttp python3-toml || true
+          pip3 install --user aiohttp toml
+
+      - name: Generate offline cargo sources
+        run: |
+          curl -L -o /tmp/flatpak-cargo-generator.py \
+            https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
+          python3 /tmp/flatpak-cargo-generator.py \
+            src-tauri/Cargo.lock \
+            -o flatpak/cargo-sources.json
+
+      - name: Generate offline node sources
+        run: |
+          npm install --global flatpak-node-generator
+          flatpak-node-generator npm package-lock.json \
+            -o flatpak/node-sources.json
+
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: splot.flatpak
+          manifest-path: flatpak/info.galu.dev.splot.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+
+      - name: Attach Flatpak to draft release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" splot.flatpak --clobber

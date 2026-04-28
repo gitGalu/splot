@@ -44,9 +44,14 @@ Supported file types for editing: `.md`, `.markdown`, `.txt`.
 Splot is built on Tauri 2, which links against **WebKitGTK 4.1** and **libsoup3** at runtime. Releases ship two Linux artifacts:
 
 - **`.deb`** — for Ubuntu 22.04+, Debian 12+, and derivatives (Mint, Pop!_OS).
-- **`.AppImage`** — single-file binary that runs on any glibc-2.34+ distro that has WebKitGTK 4.1 / libsoup3 installed system-wide. Works on Fedora 39+, Arch, openSUSE Tumbleweed.
+- **`.AppImage`** — single-file binary. Built on Ubuntu 22.04 against **glibc 2.35**, so it works on Fedora 36+, Arch, openSUSE Tumbleweed, but **not on RHEL 9 / Rocky 9 / AlmaLinux 9** (those have glibc 2.34).
+- **`.flatpak`** — recommended for RHEL 9 / Rocky 9 / Alma 9 / Fedora and any other distro. Flatpak ships its own GNOME runtime, so it's independent of the host's glibc and WebKitGTK.
 
-RHEL 9 / Rocky 9 / AlmaLinux 9 are not officially supported: their package repositories do not provide WebKitGTK 4.1, so neither the `.AppImage` nor a hypothetical `.rpm` would resolve dependencies. Flatpak distribution is the planned long-term answer for these distros.
+```bash
+flatpak install --user splot.flatpak
+```
+
+After install, launch from the desktop menu or with `flatpak run info.galu.dev.splot`.
 
 ## Shortcuts
 
