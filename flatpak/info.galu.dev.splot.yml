@@ -52,14 +52,15 @@ modules:
 
     build-commands:
       # Install npm dependencies offline. The cache layout was prepared by
-      # flatpak-node-generator --xdg-layout; npm_config_cache points to it.
+      # flatpak-node-generator; npm_config_cache points to it.
       - npm ci --offline --no-audit --no-fund
 
-      # Build frontend
-      - npm run build
+      # Build via tauri-cli (which runs `npm run build` via beforeBuildCommand
+      # then cargo). Plain `cargo build` would leave the binary in dev mode
+      # pointing at http://localhost:1420 — only the tauri-cli code path
+      # embeds the dist/ assets into the binary properly.
+      - npx tauri build --no-bundle -- --offline --frozen
 
-      # Build the Tauri app — only the binary, no bundles
-      - cd src-tauri && cargo build --release --offline --frozen
       - install -Dm755 src-tauri/target/release/splot /app/bin/splot
 
       # Desktop entry
