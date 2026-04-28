@@ -91,7 +91,10 @@ jobs:
     container:
       image: bilelmoussaoui/flatpak-github-actions:gnome-46
       options: --privileged
-    needs: build
+    # Intentionally not depending on `build` — flatpak builds everything
+    # from source in its own container and doesn't need the matrix output.
+    # Keeping the jobs independent means a flaky macOS bundler doesn't
+    # block the Linux/Flatpak release.
     steps:
       - uses: actions/checkout@v4
 
