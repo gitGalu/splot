@@ -39,7 +39,6 @@ const SECTIONS: Section[] = [
       { spec: "Mod+N", labelKey: "help.file.new" },
       { spec: "Mod+S", labelKey: "help.file.save" },
       { spec: "Mod+Shift+M", labelKey: "help.file.move" },
-      { spec: "Mod+Backspace", labelKey: "help.file.trash" },
     ],
   },
   {

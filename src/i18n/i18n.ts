@@ -187,7 +187,6 @@ const pl: Dict = {
   "help.file.new": "Nowy plik (użyj / dla folderów)",
   "help.file.save": "Zapisz (autozapis działa w tle)",
   "help.file.move": "Przenieś plik do folderu…",
-  "help.file.trash": "Przenieś do kosza",
   "help.view.toggleSidebar": "Przełącz panel boczny",
   "help.view.zoomIn": "Zwiększ tekst edytora",
   "help.view.zoomOut": "Zmniejsz tekst edytora",

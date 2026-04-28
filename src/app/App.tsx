@@ -377,11 +377,6 @@ export function App() {
       } else if (e.key === "0") {
         e.preventDefault();
         setSetting("editorFontSize", FONT_SIZE_DEFAULT);
-      } else if (e.key === "Backspace") {
-        const cur = openRef.current;
-        if (!cur) return;
-        e.preventDefault();
-        void handleTrash(cur.ref.path, cur.ref.name);
       } else if (key === "m" && e.shiftKey) {
         if (!openRef.current) return;
         e.preventDefault();
@@ -540,7 +535,6 @@ export function App() {
         id: "file.trash",
         label: t("cmd.file.trash", { name: open.ref.name }),
         group: FILE,
-        hint: formatShortcutString("Mod+Backspace"),
         run: () => {
           void handleTrash(open.ref.path, open.ref.name);
         },
