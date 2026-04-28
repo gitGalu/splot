@@ -89,7 +89,7 @@ jobs:
     # the host's glibc, which is why .AppImage doesn't work on RHEL 9.
     runs-on: ubuntu-22.04
     container:
-      image: bilelmoussaoui/flatpak-github-actions:gnome-46
+      image: bilelmoussaoui/flatpak-github-actions:gnome-48
       options: --privileged
     # Intentionally not depending on `build` — flatpak builds everything
     # from source in its own container and doesn't need the matrix output.
