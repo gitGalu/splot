@@ -117,11 +117,9 @@ jobs:
 
       - name: Generate offline node sources
         run: |
-          # --xdg-layout puts tarballs into the layout `npm ci` expects.
-          # --no-autopatch skips automatic package.json edits we don't need.
+          # XDG layout is the default; emits tarballs into a cache structure
+          # `npm ci` reads via npm_config_cache.
           flatpak-node-generator npm \
-            --xdg-layout \
-            --no-autopatch \
             -o flatpak/node-sources.json \
             package-lock.json
 
