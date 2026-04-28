@@ -97,8 +97,12 @@ jobs:
 
       - name: Install Python helpers
         run: |
-          dnf install -y python3-pip || true
+          dnf install -y python3-pip git || true
           pip3 install --break-system-packages aiohttp tomlkit toml
+          # flatpak-node-generator ships only as a Python package
+          # (no standalone script), so install it from the upstream repo.
+          pip3 install --break-system-packages \
+            "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
 
       - name: Generate offline cargo sources
         run: |
@@ -110,7 +114,6 @@ jobs:
 
       - name: Generate offline node sources
         run: |
-          npm install --global flatpak-node-generator
           flatpak-node-generator npm package-lock.json \
             -o flatpak/node-sources.json
 
