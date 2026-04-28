@@ -27,10 +27,11 @@ finish-args:
 
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
-  build-args:
-    - --share=network
   env:
     CARGO_HOME: /run/build/splot/cargo
+    XDG_CACHE_HOME: /run/build/splot/flatpak-node/cache
+    npm_config_cache: /run/build/splot/flatpak-node/cache/npm-cache
+    npm_config_offline: 'true'
     RUSTFLAGS: -C link-arg=-Wl,-rpath,/app/lib
 
 modules:
@@ -47,8 +48,9 @@ modules:
       - node-sources.json
 
     build-commands:
-      # Install npm dependencies offline from the generated source bundle
-      - npm ci --offline --no-audit --no-fund --prefer-offline
+      # Install npm dependencies offline. The cache layout was prepared by
+      # flatpak-node-generator --xdg-layout; npm_config_cache points to it.
+      - npm ci --offline --no-audit --no-fund
 
       # Build frontend
       - npm run build

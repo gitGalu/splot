@@ -114,8 +114,13 @@ jobs:
 
       - name: Generate offline node sources
         run: |
-          flatpak-node-generator npm package-lock.json \
-            -o flatpak/node-sources.json
+          # --xdg-layout puts tarballs into the layout `npm ci` expects.
+          # --no-autopatch skips automatic package.json edits we don't need.
+          flatpak-node-generator npm \
+            --xdg-layout \
+            --no-autopatch \
+            -o flatpak/node-sources.json \
+            package-lock.json
 
       - name: Build Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
