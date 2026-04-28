@@ -97,8 +97,8 @@ jobs:
 
       - name: Install Python helpers
         run: |
-          dnf install -y python3-pip python3-aiohttp python3-toml || true
-          pip3 install --user aiohttp toml
+          dnf install -y python3-pip || true
+          pip3 install --break-system-packages aiohttp tomlkit toml
 
       - name: Generate offline cargo sources
         run: |
