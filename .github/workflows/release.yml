@@ -135,7 +135,9 @@ jobs:
           cache-key: flatpak-builder-${{ github.sha }}
 
       - name: Attach Flatpak to draft release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ github.ref_name }}" splot.flatpak --clobber
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: splot.flatpak
+          fail_on_unmatched_files: true
