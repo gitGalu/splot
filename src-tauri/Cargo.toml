@@ -1,6 +1,6 @@
 [package]
 name = "splot"
-version = "0.2.11"
+version = "0.2.12"
 description = "Splot — a calm, minimal workspace editor"
 authors = ["Michał Galiński"]
 edition = "2021"
