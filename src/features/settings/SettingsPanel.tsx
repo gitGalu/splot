@@ -303,6 +303,25 @@ export function SettingsPanel({ onClose }: Props) {
                 </span>
               </span>
             </label>
+            <label className="settings-row">
+              <input
+                type="checkbox"
+                checked={settings.wheelZoom}
+                onChange={(e) => setSetting("wheelZoom", e.target.checked)}
+              />
+              <span className="settings-row-main">
+                <span className="settings-row-label">
+                  {t("settings.wheelZoom.label", {
+                    mod: formatShortcutString("Mod"),
+                  })}
+                </span>
+                <span className="settings-row-help">
+                  {t("settings.wheelZoom.help", {
+                    mod: formatShortcutString("Mod"),
+                  })}
+                </span>
+              </span>
+            </label>
           </section>
           <section className="settings-section">
             <h3 className="settings-section-title">{t("settings.section.tasks")}</h3>

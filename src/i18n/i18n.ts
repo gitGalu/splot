@@ -171,6 +171,9 @@ const pl: Dict = {
   "settings.ideLineShortcuts.label": "Skróty linii w stylu VS Code",
   "settings.ideLineShortcuts.help":
     "Gdy włączone: {mod}+D usuwa wiersz, {mod}+Shift+↑/↓ duplikuje, Alt+Shift+↑/↓ przenosi. Nadpisuje domyślne skróty CodeMirror.",
+  "settings.wheelZoom.label": "{mod}+kółko myszy zmienia rozmiar tekstu",
+  "settings.wheelZoom.help":
+    "Gdy włączone, przewijanie kółkiem przy wciśniętym {mod} powiększa lub pomniejsza tekst w edytorze.",
 
   // Help
   "help.title": "Pomoc",

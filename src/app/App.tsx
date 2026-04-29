@@ -390,6 +390,29 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [handleSave, handleTrash]);
 
+  useEffect(() => {
+    let accum = 0;
+    const STEP = 60;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (!getSettings().wheelZoom) return;
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      accum += e.deltaY;
+      const steps = Math.trunc(accum / STEP);
+      if (steps === 0) return;
+      accum -= steps * STEP;
+      const cur = getSettings().editorFontSize;
+      const next = Math.max(
+        FONT_SIZE_MIN,
+        Math.min(FONT_SIZE_MAX, cur - steps),
+      );
+      if (next !== cur) setSetting("editorFontSize", next);
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, []);
+
   const handleCreate = useCallback(
     async (rel: string) => {
       await flushPending();

@@ -27,6 +27,8 @@ export interface Settings {
   ideLineShortcuts: boolean;
   /** When true, expressions ending with `=` show their result as ghost text. */
   inlineCalc: boolean;
+  /** When true, Ctrl/Cmd + mousewheel adjusts the editor font size. */
+  wheelZoom: boolean;
 }
 
 export const AUTOSAVE_MIN_MS = 500;
@@ -49,6 +51,7 @@ const DEFAULTS: Settings = {
   linkOpenMode: "modClick",
   ideLineShortcuts: false,
   inlineCalc: true,
+  wheelZoom: true,
 };
 
 export const FONT_STACKS: Record<FontChoice, string> = {
