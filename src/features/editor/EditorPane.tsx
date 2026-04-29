@@ -11,6 +11,7 @@ import { paragraphSelection } from "./paragraph-selection";
 import { taskToggleWithAutoSort } from "./task-toggle";
 import { linkExtension } from "./links";
 import { lineCommandsKeymap } from "./line-commands";
+import { inlineCalcExtension } from "./inline-calc";
 import { FONT_STACKS, getSettings, useSettings } from "../../services/settings";
 import { getCursor, setCursor } from "../../services/cursorMemory";
 
@@ -43,6 +44,7 @@ export function EditorPane({
     editorLineHeight,
     linkOpenMode,
     ideLineShortcuts,
+    inlineCalc,
   } = useSettings();
 
   useEffect(() => {
@@ -122,6 +124,7 @@ export function EditorPane({
       // Read the setting freshly on every transaction so toggling the
       // preference takes effect without rebuilding the editor.
       extensions.push(taskToggleWithAutoSort(() => getSettings().autoSortDoneTasks));
+      if (inlineCalc) extensions.push(inlineCalcExtension());
     }
 
     // Restore the last-known caret offset for this file, clamped to the
@@ -167,7 +170,7 @@ export function EditorPane({
     };
     // Recreate the editor when the file identity changes so extensions match.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file.path, ideLineShortcuts]);
+  }, [file.path, ideLineShortcuts, inlineCalc]);
 
   // Keep the document in sync when the outer value is replaced (e.g. after save
   // revert or switching files that reuse the same path — rare, but correct).

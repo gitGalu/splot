@@ -25,6 +25,8 @@ export interface Settings {
   linkOpenMode: LinkOpenMode;
   /** When true, VS Code–style line editing shortcuts (delete/duplicate/move). */
   ideLineShortcuts: boolean;
+  /** When true, expressions ending with `=` show their result as ghost text. */
+  inlineCalc: boolean;
 }
 
 export const AUTOSAVE_MIN_MS = 500;
@@ -46,6 +48,7 @@ const DEFAULTS: Settings = {
   autoSortDoneTasks: false,
   linkOpenMode: "modClick",
   ideLineShortcuts: false,
+  inlineCalc: true,
 };
 
 export const FONT_STACKS: Record<FontChoice, string> = {

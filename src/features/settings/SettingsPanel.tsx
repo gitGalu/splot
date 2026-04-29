@@ -213,6 +213,21 @@ export function SettingsPanel({ onClose }: Props) {
                 </span>
               </div>
             </div>
+            <label className="settings-row">
+              <input
+                type="checkbox"
+                checked={settings.inlineCalc}
+                onChange={(e) => setSetting("inlineCalc", e.target.checked)}
+              />
+              <span className="settings-row-main">
+                <span className="settings-row-label">
+                  {t("settings.inlineCalc.label")}
+                </span>
+                <span className="settings-row-help">
+                  {t("settings.inlineCalc.help")}
+                </span>
+              </span>
+            </label>
             <div className="settings-row settings-row--stack">
               <div className="settings-row-main">
                 <span className="settings-row-label">
