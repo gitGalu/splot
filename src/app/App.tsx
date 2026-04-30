@@ -56,7 +56,8 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const { autosaveDelayMs, theme, showTrash } = useSettings();
+  const { autosaveDelayMs, theme, showTrash, typewriterMode, focusMode } =
+    useSettings();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -381,6 +382,12 @@ export function App() {
         if (!openRef.current) return;
         e.preventDefault();
         setMoveOpen(true);
+      } else if (key === "t" && e.shiftKey) {
+        e.preventDefault();
+        setSetting("typewriterMode", !getSettings().typewriterMode);
+      } else if (key === "f" && e.shiftKey) {
+        e.preventDefault();
+        setSetting("focusMode", !getSettings().focusMode);
       } else if (e.key === "/") {
         e.preventDefault();
         setHelpOpen((v) => !v);
@@ -516,6 +523,24 @@ export function App() {
         run: () => setSidebarVisible((v) => !v),
       },
       {
+        id: "view.typewriter",
+        label: typewriterMode
+          ? t("cmd.view.typewriterOff")
+          : t("cmd.view.typewriterOn"),
+        group: VIEW,
+        hint: formatShortcutString("Mod+Shift+T"),
+        run: () => setSetting("typewriterMode", !typewriterMode),
+      },
+      {
+        id: "view.focus",
+        label: focusMode
+          ? t("cmd.view.focusOff")
+          : t("cmd.view.focusOn"),
+        group: VIEW,
+        hint: formatShortcutString("Mod+Shift+F"),
+        run: () => setSetting("focusMode", !focusMode),
+      },
+      {
         id: "settings.open",
         label: t("cmd.settings.open"),
         group: VIEW,
@@ -637,6 +662,8 @@ export function App() {
   }, [
     open,
     registry,
+    typewriterMode,
+    focusMode,
     handleSave,
     handleOpenFolder,
     handleCloseFile,
@@ -692,6 +719,32 @@ export function App() {
           data-tauri-drag-region=""
         >
           <Breadcrumb path={open?.ref.path ?? null} dirty={dirty} saving={saving} />
+          {typewriterMode ? (
+            <span
+              className="header-mode"
+              title={t("header.typewriter.title", {
+                shortcut: formatShortcutString("Mod+Shift+T"),
+              })}
+              aria-label={t("header.typewriter.title", {
+                shortcut: formatShortcutString("Mod+Shift+T"),
+              })}
+            >
+              {t("header.typewriter.badge")}
+            </span>
+          ) : null}
+          {focusMode ? (
+            <span
+              className="header-mode"
+              title={t("header.focus.title", {
+                shortcut: formatShortcutString("Mod+Shift+F"),
+              })}
+              aria-label={t("header.focus.title", {
+                shortcut: formatShortcutString("Mod+Shift+F"),
+              })}
+            >
+              {t("header.focus.badge")}
+            </span>
+          ) : null}
           <button
             type="button"
             className="header-help"

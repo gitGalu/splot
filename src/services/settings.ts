@@ -29,6 +29,10 @@ export interface Settings {
   inlineCalc: boolean;
   /** When true, Ctrl/Cmd + mousewheel adjusts the editor font size. */
   wheelZoom: boolean;
+  /** When true, the active line is kept vertically centered in the editor. */
+  typewriterMode: boolean;
+  /** When true, paragraphs other than the one with the caret are dimmed. */
+  focusMode: boolean;
 }
 
 export const AUTOSAVE_MIN_MS = 500;
@@ -52,6 +56,8 @@ const DEFAULTS: Settings = {
   ideLineShortcuts: false,
   inlineCalc: true,
   wheelZoom: true,
+  typewriterMode: false,
+  focusMode: false,
 };
 
 export const FONT_STACKS: Record<FontChoice, string> = {

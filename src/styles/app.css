@@ -396,6 +396,27 @@
   app-region: drag;
 }
 
+.header-mode {
+  margin-left: auto;
+  font-size: var(--font-size-ui-small);
+  color: var(--color-text-faint);
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.header-mode + .header-help,
+.header-mode + .header-mode {
+  margin-left: var(--space-3);
+}
+
+.cm-focus-dim {
+  opacity: 0.35;
+  transition: opacity 200ms ease;
+}
+
 .header-help {
   margin-left: auto;
   width: 22px;
