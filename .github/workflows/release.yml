@@ -96,11 +96,19 @@ jobs:
             const tag = process.env.TAG;
             const version = tag.replace(/^v/, "");
 
-            const { data: release } = await github.rest.repos.getReleaseByTag({
+            // Drafts created by tauri-action carry a `tag_name` but no real
+            // git tag yet, so `getReleaseByTag` 404s. Page through releases
+            // and pick the draft (or published, on a re-run) that matches.
+            const releases = await github.paginate(github.rest.repos.listReleases, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag,
+              per_page: 100,
             });
+            const release = releases.find((r) => r.tag_name === tag);
+            if (!release) {
+              core.setFailed(`No release found for tag ${tag}`);
+              return;
+            }
 
             const assets = release.assets;
             const findAsset = (predicate) => assets.find(predicate);
