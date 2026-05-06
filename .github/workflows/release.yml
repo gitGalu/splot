@@ -1,11 +1,18 @@
 name: Release
 
-# Triggered by pushing a `v*` tag. Builds for all platforms and creates a
-# DRAFT GitHub Release with the installers attached. You then review and
-# publish the draft from the GitHub UI.
+# Triggered by pushing a `v*` tag. Builds macOS (arm64 + x64) and Windows
+# x64 installers, signs them for the auto-updater, and creates a DRAFT
+# GitHub Release with all artifacts attached. You then review and publish
+# the draft from the GitHub UI.
+#
+# Linux .deb / .AppImage / Flatpak builds are intentionally NOT part of this
+# workflow. The Splot auto-updater is only wired up for macOS and Windows
+# (see src-tauri/src/lib.rs and src-tauri/Cargo.toml). Linux distribution is
+# handled outside this pipeline.
 #
 # For test builds without creating a release, use the "Build (manual)"
-# workflow — it produces the same artifacts as workflow run downloads.
+# workflow — it produces the same installers as workflow-run downloads
+# without signing the updater artifacts.
 
 on:
   push:
@@ -24,32 +31,19 @@ jobs:
           - platform: macos-latest
             args: "--target aarch64-apple-darwin"
             name: macos-arm64
+            rust-target: aarch64-apple-darwin
           - platform: macos-latest
             args: "--target x86_64-apple-darwin"
             name: macos-x64
-          - platform: ubuntu-22.04
-            args: ""
-            name: linux-x64
+            rust-target: x86_64-apple-darwin
           - platform: windows-latest
             args: ""
             name: windows-x64
+            rust-target: ""
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Linux build dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libgtk-3-dev \
-            libsoup-3.0-dev \
-            libjavascriptcoregtk-4.1-dev
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -60,7 +54,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && (contains(matrix.args, 'aarch64') && 'aarch64-apple-darwin' || 'x86_64-apple-darwin') || '' }}
+          targets: ${{ matrix.rust-target }}
 
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
@@ -75,69 +69,106 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Splot ${{ github.ref_name }}"
           releaseDraft: true
           prerelease: false
+          generateReleaseNotes: true
           args: ${{ matrix.args }}
 
-  flatpak:
-    # Built separately because flatpak-builder needs its own container with
-    # the GNOME runtime/SDK preinstalled. Output is a single .flatpak bundle
-    # that installs on RHEL, Fedora, Ubuntu, openSUSE, etc. — independent of
-    # the host's glibc, which is why .AppImage doesn't work on RHEL 9.
+  # tauri-action emits its own per-job latest.json, so a matrix run causes
+  # them to overwrite each other on the draft. Build the canonical latest.json
+  # from the signatures uploaded to the release once all platform jobs are
+  # done — that file is what the updater endpoint resolves to.
+  publish-updater-manifest:
+    needs: build
     runs-on: ubuntu-22.04
-    container:
-      # Container only provides flatpak-builder + a preinstalled runtime
-      # cache. The actual GNOME 48 runtime is pulled from Flathub at build
-      # time per the manifest. Container tag follows the highest published
-      # value (currently 47); going up doesn't constrain the manifest.
-      image: bilelmoussaoui/flatpak-github-actions:gnome-47
-      options: --privileged
-    # Intentionally not depending on `build` — flatpak builds everything
-    # from source in its own container and doesn't need the matrix output.
-    # Keeping the jobs independent means a flaky macOS bundler doesn't
-    # block the Linux/Flatpak release.
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Python helpers
-        run: |
-          dnf install -y python3-pip git || true
-          pip3 install --break-system-packages aiohttp tomlkit toml
-          # flatpak-node-generator ships only as a Python package
-          # (no standalone script), so install it from the upstream repo.
-          pip3 install --break-system-packages \
-            "git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node"
-
-      - name: Generate offline cargo sources
-        run: |
-          curl -L -o /tmp/flatpak-cargo-generator.py \
-            https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/cargo/flatpak-cargo-generator.py
-          python3 /tmp/flatpak-cargo-generator.py \
-            src-tauri/Cargo.lock \
-            -o flatpak/cargo-sources.json
-
-      - name: Generate offline node sources
-        run: |
-          # XDG layout is the default; emits tarballs into a cache structure
-          # `npm ci` reads via npm_config_cache.
-          flatpak-node-generator npm \
-            -o flatpak/node-sources.json \
-            package-lock.json
-
-      - name: Build Flatpak bundle
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      - name: Build latest.json from release signatures
+        uses: actions/github-script@v7
+        env:
+          TAG: ${{ github.ref_name }}
         with:
-          bundle: splot.flatpak
-          manifest-path: flatpak/info.galu.dev.splot.yml
-          cache-key: flatpak-builder-${{ github.sha }}
+          script: |
+            const tag = process.env.TAG;
+            const version = tag.replace(/^v/, "");
 
-      - name: Attach Flatpak to draft release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          draft: true
-          files: splot.flatpak
-          fail_on_unmatched_files: true
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag,
+            });
+
+            const assets = release.assets;
+            const findAsset = (predicate) => assets.find(predicate);
+
+            // Map a Tauri updater target (`darwin-aarch64`, `darwin-x86_64`,
+            // `windows-x86_64`) to its installer + signature pair.
+            const targets = [
+              {
+                key: "darwin-aarch64",
+                installerRe: /aarch64.*\.app\.tar\.gz$/i,
+                sigRe: /aarch64.*\.app\.tar\.gz\.sig$/i,
+              },
+              {
+                key: "darwin-x86_64",
+                installerRe: /x64.*\.app\.tar\.gz$|x86_64.*\.app\.tar\.gz$/i,
+                sigRe: /x64.*\.app\.tar\.gz\.sig$|x86_64.*\.app\.tar\.gz\.sig$/i,
+              },
+              {
+                key: "windows-x86_64",
+                installerRe: /(?:x64|x86_64).*setup\.exe$|(?:x64|x86_64).*\.msi$/i,
+                sigRe: /(?:x64|x86_64).*setup\.exe\.sig$|(?:x64|x86_64).*\.msi\.sig$/i,
+              },
+            ];
+
+            const platforms = {};
+            for (const t of targets) {
+              const installer = findAsset((a) => t.installerRe.test(a.name));
+              const sig = findAsset((a) => t.sigRe.test(a.name));
+              if (!installer || !sig) {
+                core.warning(`No installer/sig pair for ${t.key} — skipping`);
+                continue;
+              }
+              const sigUrl = sig.browser_download_url;
+              const sigBody = await fetch(sigUrl).then((r) => r.text());
+              platforms[t.key] = {
+                signature: sigBody.trim(),
+                url: installer.browser_download_url,
+              };
+            }
+
+            if (Object.keys(platforms).length === 0) {
+              core.setFailed("No platforms resolved — refusing to publish empty latest.json");
+              return;
+            }
+
+            const manifest = {
+              version,
+              notes: release.body || "",
+              pub_date: release.published_at || new Date().toISOString(),
+              platforms,
+            };
+
+            // Replace any existing latest.json, then upload the freshly built one.
+            const existing = assets.find((a) => a.name === "latest.json");
+            if (existing) {
+              await github.rest.repos.deleteReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: existing.id,
+              });
+            }
+
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.id,
+              name: "latest.json",
+              data: JSON.stringify(manifest, null, 2),
+            });
+
+            core.info(`Published latest.json for ${tag} with ${Object.keys(platforms).join(", ")}`);

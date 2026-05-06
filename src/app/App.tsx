@@ -25,6 +25,8 @@ import { QuickOpen } from "../features/quickopen/QuickOpen";
 import { CommandPalette, type Command } from "../features/commands/CommandPalette";
 import { SettingsPanel } from "../features/settings/SettingsPanel";
 import { HelpModal } from "../features/help/HelpModal";
+import { UpdateModal } from "../features/updates/UpdateModal";
+import { isUpdaterSupported } from "../services/updater";
 import {
   FONT_SIZE_DEFAULT,
   FONT_SIZE_MAX,
@@ -56,6 +58,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
   const { autosaveDelayMs, theme, showTrash, typewriterMode, focusMode } =
     useSettings();
 
@@ -564,6 +567,15 @@ export function App() {
       },
     ];
 
+    if (isUpdaterSupported) {
+      list.push({
+        id: "update.check",
+        label: t("cmd.update.check"),
+        group: VIEW,
+        run: () => setUpdateOpen(true),
+      });
+    }
+
     if (open) {
       list.push({
         id: "file.close",
@@ -806,6 +818,7 @@ export function App() {
         <SettingsPanel onClose={() => setSettingsOpen(false)} />
       ) : null}
       {helpOpen ? <HelpModal onClose={() => setHelpOpen(false)} /> : null}
+      {updateOpen ? <UpdateModal onClose={() => setUpdateOpen(false)} /> : null}
       {moveOpen && open && tree ? (
         <MoveFileModal
           roots={tree.roots}

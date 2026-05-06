@@ -1229,3 +1229,65 @@
 .platform-other .main-header--no-sidebar {
   padding-left: var(--space-5);
 }
+
+/* Update modal ------------------------------------------------------------- */
+
+.update-panel .settings-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.update-panel .settings-action {
+  appearance: none;
+  font: inherit;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-2);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.update-panel .settings-action:hover {
+  background: var(--color-hover);
+}
+
+.update-panel .settings-action--primary {
+  border-color: var(--color-accent, var(--color-border));
+  background: var(--color-accent, var(--color-surface));
+  color: var(--color-accent-foreground, var(--color-text));
+}
+
+.update-panel .settings-action[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.update-notes {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font: inherit;
+  font-size: var(--font-size-ui-small);
+  color: var(--color-text-muted);
+  background: var(--color-surface-sunken, var(--color-hover));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+}
+
+.update-progress {
+  margin-top: var(--space-2);
+  height: 6px;
+  background: var(--color-surface-sunken, var(--color-hover));
+  border-radius: var(--radius-1);
+  overflow: hidden;
+}
+
+.update-progress-bar {
+  height: 100%;
+  background: var(--color-accent, var(--color-text-muted));
+  transition: width 120ms ease-out;
+}

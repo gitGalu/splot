@@ -19,10 +19,21 @@ const MENU_ID_REPO: &str = "splot.help.repo";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+
+    // Auto-update is intentionally desktop-only and intentionally excludes
+    // Linux: Flatpak builds are managed by the package; raw deb/AppImage
+    // builds aren't shipped here. Keeping the registration target-gated
+    // matches the Cargo target-conditional dependency in src-tauri/Cargo.toml.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init());
+
+    builder
         .setup(|app| {
             let state = WorkspaceState::initialize(app.handle())?;
             app.manage(state);

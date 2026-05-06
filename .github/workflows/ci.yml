@@ -3,6 +3,12 @@ name: Build (manual)
 # Manual cross-platform build. Produces installer artifacts you can download
 # from the workflow run page. Does NOT create a GitHub Release — that's the
 # job of release.yml, triggered by pushing a `v*` tag.
+#
+# Note: this workflow does NOT sign updater artifacts. Manual builds are
+# meant for smoke-testing installers; they cannot be served to the
+# auto-updater because they have no valid signature. Tauri logs a warning
+# during build (because `bundle.createUpdaterArtifacts` is true in
+# tauri.conf.json) which is expected and harmless here.
 
 on:
   workflow_dispatch:
@@ -16,32 +22,19 @@ jobs:
           - platform: macos-latest
             args: "--target aarch64-apple-darwin"
             name: macos-arm64
+            rust-target: aarch64-apple-darwin
           - platform: macos-latest
             args: "--target x86_64-apple-darwin"
             name: macos-x64
-          - platform: ubuntu-22.04
-            args: ""
-            name: linux-x64
+            rust-target: x86_64-apple-darwin
           - platform: windows-latest
             args: ""
             name: windows-x64
+            rust-target: ""
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Linux build dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libgtk-3-dev \
-            libsoup-3.0-dev \
-            libjavascriptcoregtk-4.1-dev
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -52,7 +45,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && (contains(matrix.args, 'aarch64') && 'aarch64-apple-darwin' || 'x86_64-apple-darwin') || '' }}
+          targets: ${{ matrix.rust-target }}
 
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
@@ -75,8 +68,6 @@ jobs:
           path: |
             src-tauri/target/**/release/bundle/**/*.dmg
             src-tauri/target/**/release/bundle/**/*.app
-            src-tauri/target/**/release/bundle/**/*.AppImage
-            src-tauri/target/**/release/bundle/**/*.deb
             src-tauri/target/**/release/bundle/**/*.msi
             src-tauri/target/**/release/bundle/**/*.exe
           if-no-files-found: warn

@@ -183,6 +183,21 @@ const pl: Dict = {
   "settings.wheelZoom.help":
     "Gdy włączone, przewijanie kółkiem przy wciśniętym {mod} powiększa lub pomniejsza tekst w edytorze.",
 
+  // Updates
+  "cmd.update.check": "Sprawdź aktualizacje…",
+  "update.title": "Aktualizacje",
+  "update.checking": "Sprawdzam aktualizacje…",
+  "update.upToDate": "Masz najnowszą wersję Splota.",
+  "update.available":
+    "Dostępna nowa wersja: {version} (obecnie {current}).",
+  "update.publishedOn": "Opublikowano: {date}",
+  "update.install": "Pobierz i zainstaluj",
+  "update.downloading": "Pobieranie aktualizacji…",
+  "update.installing": "Instaluję — Splot zaraz uruchomi się ponownie…",
+  "update.recheck": "Sprawdź ponownie",
+  "update.unsupported":
+    "Aktualizacje wbudowane są dostępne tylko na macOS i Windows. Na Linuksie zaktualizuj Splota przez swojego menedżera pakietów.",
+
   // Help
   "help.title": "Pomoc",
   "help.open": "Pokaż pomoc",
