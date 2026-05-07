@@ -137,60 +137,73 @@ jobs:
               return;
             }
 
-            // Walk the artifact tree and collect every .sig by basename.
-            // Tauri places each in src-tauri/target/<triple>/release/bundle/
-            // <bundleType>/, but actions/upload-artifact preserves only the
-            // path under the workspace root, so we just recurse.
-            const sigs = new Map();
+            // Walk the artifact tree and collect every .sig with its full
+            // path. macOS bundles are named just `Splot.app.tar.gz.sig` for
+            // both architectures — only the `aarch64-apple-darwin` /
+            // `x86_64-apple-darwin` parent directory disambiguates them.
+            const sigs = [];
             const walk = (dir) => {
               for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
                 const full = path.join(dir, entry.name);
                 if (entry.isDirectory()) walk(full);
-                else if (entry.name.endsWith(".sig")) sigs.set(entry.name, full);
+                else if (entry.name.endsWith(".sig")) sigs.push(full);
               }
             };
             walk("sigs");
+            core.info(`Discovered ${sigs.length} .sig files: ${sigs.join(", ")}`);
 
-            // Map Tauri updater target keys to their installer + sig file
-            // patterns. Names come from tauri-action's bundling output and
-            // line up 1:1 with the release assets uploaded to the draft.
+            // Map each updater target to:
+            //  - `installerRe`: matches the asset *name* on the release
+            //    (these names ARE arch-tagged: `Splot_aarch64.app.tar.gz`,
+            //    `Splot_x64.app.tar.gz`, `Splot_<v>_x64-setup.exe`, …).
+            //  - `sigPathRe`: matches the *full path* of the .sig on disk.
+            //    macOS .sig basenames are not arch-tagged (`Splot.app.tar.gz.sig`)
+            //    — disambiguate via the `aarch64-apple-darwin` /
+            //    `x86_64-apple-darwin` parent directory that
+            //    upload-artifact preserved.
             const targets = [
               {
                 key: "darwin-aarch64",
                 installerRe: /aarch64.*\.app\.tar\.gz$/i,
-                sigRe: /aarch64.*\.app\.tar\.gz\.sig$/i,
+                sigPathRe: /aarch64-apple-darwin\b.*\.app\.tar\.gz\.sig$/i,
               },
               {
                 key: "darwin-x86_64",
-                installerRe: /x64.*\.app\.tar\.gz$|x86_64.*\.app\.tar\.gz$/i,
-                sigRe: /x64.*\.app\.tar\.gz\.sig$|x86_64.*\.app\.tar\.gz\.sig$/i,
+                installerRe: /(?:x64|x86_64).*\.app\.tar\.gz$/i,
+                sigPathRe: /x86_64-apple-darwin\b.*\.app\.tar\.gz\.sig$/i,
               },
               {
                 key: "windows-x86_64",
                 installerRe: /(?:x64|x86_64).*setup\.exe$|(?:x64|x86_64).*\.msi$/i,
-                sigRe: /(?:x64|x86_64).*setup\.exe\.sig$|(?:x64|x86_64).*\.msi\.sig$/i,
+                // Windows .sig basename IS arch-tagged, no path disambiguation needed.
+                sigPathRe: /(?:x64|x86_64).*setup\.exe\.sig$|(?:x64|x86_64).*\.msi\.sig$/i,
               },
             ];
 
             const platforms = {};
             for (const t of targets) {
               const installer = release.assets.find((a) => t.installerRe.test(a.name));
-              const sigEntry = [...sigs.entries()].find(([name]) => t.sigRe.test(name));
-              if (!installer || !sigEntry) {
+              const sigPath = sigs.find((p) => t.sigPathRe.test(p));
+              if (!installer || !sigPath) {
                 core.warning(
-                  `No installer/sig pair for ${t.key} — installer=${installer?.name}, sig=${sigEntry?.[0]}`,
+                  `No installer/sig pair for ${t.key} — installer=${installer?.name}, sig=${sigPath}`,
                 );
                 continue;
               }
-              const sigBody = fs.readFileSync(sigEntry[1], "utf8").trim();
-              if (!sigBody.startsWith("untrusted comment:")) {
+              // Tauri writes .sig files as base64 (decoded body starts with
+              // `untrusted comment: …`). The updater reads the file as-is,
+              // so latest.json must keep the base64 form. Validate by
+              // round-tripping through Buffer.
+              const sigBase64 = fs.readFileSync(sigPath, "utf8").trim();
+              const sigDecoded = Buffer.from(sigBase64, "base64").toString("utf8");
+              if (!sigDecoded.startsWith("untrusted comment:")) {
                 throw new Error(
-                  `Signature for ${t.key} (${sigEntry[0]}) does not look like minisign output: ` +
-                    sigBody.slice(0, 80),
+                  `Signature for ${t.key} (${path.basename(sigPath)}) does not decode to ` +
+                    `minisign output. Decoded prefix: ${sigDecoded.slice(0, 80)}`,
                 );
               }
               platforms[t.key] = {
-                signature: sigBody,
+                signature: sigBase64,
                 // Build the URL from the tag rather than reusing the
                 // draft's `browser_download_url` (which contains
                 // `untagged-<sha>` and stops resolving once published).
