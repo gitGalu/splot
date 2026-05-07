@@ -30,6 +30,8 @@ export interface WorkspaceProvider {
   trashEntry(path: string): Promise<string>;
   moveEntry(from: string, toDir: string): Promise<string>;
   renameEntry(from: string, newName: string): Promise<string>;
+  watchFile(path: string): Promise<void>;
+  unwatchFile(): Promise<void>;
 }
 
 export interface CreatedEntry {
@@ -85,6 +87,12 @@ export function createTauriWorkspaceProvider(
     },
     async renameEntry(from, newName) {
       return bridge.invoke<string>("cmd_rename_entry", { from, newName });
+    },
+    async watchFile(path) {
+      await bridge.invoke<void>("cmd_watch_file", { path });
+    },
+    async unwatchFile() {
+      await bridge.invoke<void>("cmd_unwatch_file");
     },
   };
 }

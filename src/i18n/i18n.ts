@@ -14,6 +14,12 @@ const pl: Dict = {
   "app.loadingWorkspace": "Wczytywanie przestrzeni…",
   "error.unknown": "Nieznany błąd",
 
+  // External-change conflict banner
+  "conflict.message":
+    "Plik „{name}\" został zmieniony poza Splotem, a masz niezapisane zmiany.",
+  "conflict.reload": "Przeładuj z dysku",
+  "conflict.keepMine": "Zachowaj moje (nadpisze przy zapisie)",
+
   // Workspace error kinds (from Rust WorkspaceError)
   "error.kind.NotInitialized": "Przestrzeń nie jest zainicjalizowana",
   "error.kind.PathEscapesRoot": "Ścieżka wychodzi poza przestrzeń roboczą",

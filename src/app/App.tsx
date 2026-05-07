@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ask, open as openDialog } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { createTauriWorkspaceProvider, loadWorkspaceTree } from "../services/workspaceProvider";
 import type {
@@ -59,6 +60,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [externallyChanged, setExternallyChanged] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const { autosaveDelayMs, theme, showTrash, typewriterMode, focusMode } =
@@ -261,6 +263,29 @@ export function App() {
     }
   }, [open, provider, saving]);
 
+  /**
+   * Re-read the currently open file from disk and replace both `original`
+   * and `current`. Used both for silent reload (when the file changed
+   * externally and we have nothing pending to lose) and for the user's
+   * explicit "reload, drop my changes" choice from the conflict banner.
+   */
+  const reloadOpenFromDisk = useCallback(async () => {
+    const cur = openRef.current;
+    if (!cur) return;
+    try {
+      const content = await provider.readFile(cur.ref.path);
+      setOpen((prev) =>
+        prev && prev.ref.path === cur.ref.path
+          ? { ...prev, original: content.text, current: content.text }
+          : prev,
+      );
+      setExternallyChanged(false);
+      setError(null);
+    } catch (e) {
+      setError(formatError(e));
+    }
+  }, [provider]);
+
   const applyEntryPathChange = useCallback(
     (from: string, newPath: string) => {
       // Rewrite the path of the currently open file (or any descendant of a
@@ -362,6 +387,57 @@ export function App() {
     }, autosaveDelayMs);
     return () => window.clearTimeout(id);
   }, [open, autosaveDelayMs, handleSave]);
+
+  // Watch the currently open file for external changes (git pull, edits in
+  // another editor). The backend polls modtime; we only need to know which
+  // file to follow. Reset the conflict banner whenever the file changes —
+  // it belongs to the previously open file.
+  const watchedPathRef = useRef<string | null>(null);
+  useEffect(() => {
+    const path = open?.ref.path ?? null;
+    if (watchedPathRef.current === path) return;
+    watchedPathRef.current = path;
+    setExternallyChanged(false);
+    if (path) {
+      void provider.watchFile(path).catch(() => {
+        /* watcher is best-effort; a failure shouldn't surface to the user */
+      });
+    } else {
+      void provider.unwatchFile().catch(() => {});
+    }
+    return () => {
+      // We do NOT unwatch on every render — only when the file actually
+      // changes (handled by the next run of this effect). The cleanup runs
+      // on unmount, where we do want to release the watcher.
+    };
+  }, [open?.ref.path, provider]);
+
+  // Subscribe to the backend's `file:changed` event. If it's our file:
+  //   - clean state (no pending edits)  → silent reload, preserving caret;
+  //   - dirty (in-flight changes)       → show the conflict banner.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    void listen<{ path: string }>("file:changed", (event) => {
+      const cur = openRef.current;
+      if (!cur || cur.ref.path !== event.payload.path) return;
+      if (isDirty(cur)) {
+        setExternallyChanged(true);
+      } else {
+        void reloadOpenFromDisk();
+      }
+    }).then((u) => {
+      if (cancelled) {
+        u();
+      } else {
+        unlisten = u;
+      }
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [reloadOpenFromDisk]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -801,6 +877,29 @@ export function App() {
         </header>
         <section className="main-body">
           {error ? <div className="error-banner">{error}</div> : null}
+          {externallyChanged && open ? (
+            <div className="conflict-banner" role="alert">
+              <span className="conflict-banner-text">
+                {t("conflict.message", { name: open.ref.name })}
+              </span>
+              <span className="conflict-banner-actions">
+                <button
+                  type="button"
+                  className="conflict-banner-btn conflict-banner-btn--primary"
+                  onClick={() => void reloadOpenFromDisk()}
+                >
+                  {t("conflict.reload")}
+                </button>
+                <button
+                  type="button"
+                  className="conflict-banner-btn"
+                  onClick={() => setExternallyChanged(false)}
+                >
+                  {t("conflict.keepMine")}
+                </button>
+              </span>
+            </div>
+          ) : null}
           {open && tree ? (
             <EditorPane
               key={open.ref.path}

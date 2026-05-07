@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::sync::RwLock;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use thiserror::Error;
 
 const WORKSPACE_DIR_NAME: &str = "workspace";
@@ -58,10 +60,31 @@ pub struct Registry {
     pub workspaces: Vec<WorkspaceEntry>,
 }
 
+/// Shared state for the file watcher. The watcher thread reads `path` and
+/// `last_mtime` each tick, comparing the on-disk mtime against the recorded
+/// one. Self-writes (via cmd_write_file) update `last_mtime` so the next tick
+/// doesn't fire an "external change" for our own save.
+struct WatcherShared {
+    /// Absolute path on disk — for fs::metadata() polling.
+    path: PathBuf,
+    /// Workspace-relative path (`/`-separated). Sent in the event payload
+    /// so the frontend can match against `open.ref.path` directly.
+    rel_path: String,
+    last_mtime: Mutex<Option<SystemTime>>,
+}
+
+struct WatcherHandle {
+    shared: Arc<WatcherShared>,
+    stop: Arc<AtomicBool>,
+}
+
 pub struct WorkspaceState {
     root: RwLock<Option<PathBuf>>,
     registry: RwLock<Registry>,
     registry_path: PathBuf,
+    /// Currently watched file. At most one at a time — replaced when the user
+    /// switches files. `None` while the editor is idle.
+    watcher: RwLock<Option<WatcherHandle>>,
 }
 
 impl WorkspaceState {
@@ -125,6 +148,7 @@ impl WorkspaceState {
             root: RwLock::new(Some(active_path)),
             registry: RwLock::new(registry),
             registry_path,
+            watcher: RwLock::new(None),
         })
     }
 
@@ -371,7 +395,113 @@ pub fn cmd_write_file(
         fs::create_dir_all(parent)?;
     }
     fs::write(&resolved, contents)?;
+
+    // If this is the file we're watching, refresh the recorded mtime so the
+    // watcher doesn't fire an "external change" event for our own save.
+    if let Some(handle) = state.watcher.read().ok().and_then(|g| {
+        g.as_ref().and_then(|h| {
+            (h.shared.path == resolved).then(|| h.shared.clone())
+        })
+    }) {
+        if let Ok(meta) = fs::metadata(&resolved) {
+            if let Ok(mtime) = meta.modified() {
+                if let Ok(mut last) = handle.last_mtime.lock() {
+                    *last = Some(mtime);
+                }
+            }
+        }
+    }
+
     Ok(())
+}
+
+/// Begin watching the given file for external modifications. Replaces any
+/// previous watcher. Emits a `file:changed` Tauri event with `{ path }` when
+/// the file's mtime moves while the watcher is alive (and the change wasn't
+/// caused by our own write).
+#[tauri::command]
+pub fn cmd_watch_file(
+    app: AppHandle,
+    state: State<'_, WorkspaceState>,
+    path: String,
+) -> Result<(), WorkspaceError> {
+    let resolved = state.resolve_within(&path)?;
+    if !resolved.is_file() {
+        return Err(WorkspaceError::NotAFile);
+    }
+    let root = state.root()?;
+    let rel_path = relative_string(&root, &resolved);
+    let initial = fs::metadata(&resolved).and_then(|m| m.modified()).ok();
+
+    // Tear down any existing watcher first. The thread checks `stop` before
+    // each tick, so it exits within ~1.5s of being signalled.
+    if let Ok(mut guard) = state.watcher.write() {
+        if let Some(prev) = guard.take() {
+            prev.stop.store(true, Ordering::Relaxed);
+        }
+    }
+
+    let shared = Arc::new(WatcherShared {
+        path: resolved.clone(),
+        rel_path,
+        last_mtime: Mutex::new(initial),
+    });
+    let stop = Arc::new(AtomicBool::new(false));
+
+    {
+        let shared = shared.clone();
+        let stop = stop.clone();
+        let app = app.clone();
+        thread::spawn(move || {
+            // 1.5s is a comfortable trade-off: short enough that a git pull
+            // shows up almost immediately, long enough that the polling
+            // overhead is invisible.
+            let interval = Duration::from_millis(1500);
+            while !stop.load(Ordering::Relaxed) {
+                thread::sleep(interval);
+                if stop.load(Ordering::Relaxed) {
+                    break;
+                }
+                let current = match fs::metadata(&shared.path).and_then(|m| m.modified()) {
+                    Ok(m) => m,
+                    Err(_) => continue, // file gone or unreadable; ignore for now
+                };
+                let mut last = match shared.last_mtime.lock() {
+                    Ok(g) => g,
+                    Err(_) => continue,
+                };
+                if Some(current) != *last {
+                    *last = Some(current);
+                    drop(last);
+                    let payload = FileChangedPayload {
+                        path: shared.rel_path.clone(),
+                    };
+                    let _ = app.emit("file:changed", payload);
+                }
+            }
+        });
+    }
+
+    if let Ok(mut guard) = state.watcher.write() {
+        *guard = Some(WatcherHandle { shared, stop });
+    }
+    Ok(())
+}
+
+/// Stop the active file watcher, if any. Idempotent.
+#[tauri::command]
+pub fn cmd_unwatch_file(state: State<'_, WorkspaceState>) -> Result<(), WorkspaceError> {
+    if let Ok(mut guard) = state.watcher.write() {
+        if let Some(prev) = guard.take() {
+            prev.stop.store(true, Ordering::Relaxed);
+        }
+    }
+    Ok(())
+}
+
+#[derive(Serialize, Clone)]
+struct FileChangedPayload {
+    path: String,
 }
 
 #[derive(Serialize)]

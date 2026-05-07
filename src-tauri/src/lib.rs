@@ -9,7 +9,8 @@ use tauri_plugin_opener::OpenerExt;
 use workspace::{
     cmd_add_workspace, cmd_create_entry, cmd_list_workspace, cmd_list_workspaces,
     cmd_move_entry, cmd_read_file, cmd_remove_workspace, cmd_rename_entry, cmd_search_content,
-    cmd_switch_workspace, cmd_trash_entry, cmd_workspace_info, cmd_write_file, WorkspaceState,
+    cmd_switch_workspace, cmd_trash_entry, cmd_unwatch_file, cmd_watch_file, cmd_workspace_info,
+    cmd_write_file, WorkspaceState,
 };
 
 #[cfg(target_os = "macos")]
@@ -81,6 +82,8 @@ pub fn run() {
             cmd_trash_entry,
             cmd_move_entry,
             cmd_rename_entry,
+            cmd_watch_file,
+            cmd_unwatch_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running splot");
