@@ -91,6 +91,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           script: |
             const tag = process.env.TAG;
@@ -133,6 +134,37 @@ jobs:
               },
             ];
 
+            // Drafts aren't reachable through `browser_download_url` without a
+            // session cookie, and once published the URL changes from
+            // `releases/download/untagged-<sha>/...` to
+            // `releases/download/<tag>/...`. We need both:
+            //   - to read the .sig now (draft) → use the assets API with
+            //     `Accept: application/octet-stream` and a token,
+            //   - the installer URL embedded in latest.json must resolve
+            //     after publication → construct `releases/download/<tag>/<name>`
+            //     ourselves so it doesn't rot when the draft is published.
+            const repoSlug = `${context.repo.owner}/${context.repo.repo}`;
+
+            const fetchAssetText = async (assetId) => {
+              const res = await fetch(
+                `https://api.github.com/repos/${repoSlug}/releases/assets/${assetId}`,
+                {
+                  headers: {
+                    Accept: "application/octet-stream",
+                    Authorization: `token ${process.env.GITHUB_TOKEN}`,
+                    "User-Agent": "splot-release-workflow",
+                  },
+                  redirect: "follow",
+                },
+              );
+              if (!res.ok) {
+                throw new Error(
+                  `Asset ${assetId} download failed: HTTP ${res.status}`,
+                );
+              }
+              return await res.text();
+            };
+
             const platforms = {};
             for (const t of targets) {
               const installer = findAsset((a) => t.installerRe.test(a.name));
@@ -141,11 +173,19 @@ jobs:
                 core.warning(`No installer/sig pair for ${t.key} — skipping`);
                 continue;
               }
-              const sigUrl = sig.browser_download_url;
-              const sigBody = await fetch(sigUrl).then((r) => r.text());
+              const sigBody = (await fetchAssetText(sig.id)).trim();
+              // Minisign signatures start with `untrusted comment:` — anything
+              // else (HTML 404 page, empty body) is a fetch problem we'd
+              // rather fail loudly on than embed in the manifest.
+              if (!sigBody.startsWith("untrusted comment:")) {
+                throw new Error(
+                  `Signature for ${t.key} (${sig.name}) does not look like minisign output: ` +
+                    sigBody.slice(0, 80),
+                );
+              }
               platforms[t.key] = {
-                signature: sigBody.trim(),
-                url: installer.browser_download_url,
+                signature: sigBody,
+                url: `https://github.com/${repoSlug}/releases/download/${tag}/${installer.name}`,
               };
             }
 
