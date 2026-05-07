@@ -909,6 +909,7 @@ export function App() {
                 <button
                   type="button"
                   className="btn btn--ghost btn--small"
+                  title={t("conflict.showDiff.tip")}
                   onClick={() => void openDiff()}
                 >
                   {t("conflict.showDiff")}
@@ -916,6 +917,7 @@ export function App() {
                 <button
                   type="button"
                   className="btn btn--small"
+                  title={t("conflict.keepMine.tip")}
                   onClick={() => {
                     setExternallyChanged(false);
                     setDiffTheirs(null);
@@ -926,6 +928,7 @@ export function App() {
                 <button
                   type="button"
                   className="btn btn--primary btn--small"
+                  title={t("conflict.reload.tip")}
                   onClick={() => void reloadOpenFromDisk()}
                 >
                   {t("conflict.reload")}

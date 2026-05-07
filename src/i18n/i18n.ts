@@ -18,13 +18,20 @@ const pl: Dict = {
   "conflict.title": "Plik zmieniony poza Splotem",
   "conflict.detail":
     "„{name}\" został zmieniony na dysku, a masz niezapisane zmiany w edytorze.",
-  "conflict.reload": "Przeładuj z dysku",
-  "conflict.keepMine": "Zachowaj moje",
+  "conflict.reload": "Wczytaj wersję z dysku",
+  "conflict.reload.tip": "Porzuca twoje niezapisane zmiany.",
+  "conflict.keepMine": "Zostaw moją wersję",
+  "conflict.keepMine.tip":
+    "Twoje zmiany pozostaną w edytorze. Następny zapis nadpisze plik na dysku.",
   "conflict.showDiff": "Pokaż różnice",
+  "conflict.showDiff.tip":
+    "Porównaj swoją wersję z tym, co jest teraz na dysku.",
   "conflict.diff.title": "Różnice — {name}",
-  "conflict.diff.mine": "Twoja wersja",
+  "conflict.diff.mine": "Twoja wersja (w edytorze)",
   "conflict.diff.theirs": "Wersja na dysku",
-  "conflict.diff.dismiss": "Zamknij",
+  "conflict.diff.dismiss": "Zamknij okno",
+  "conflict.diff.dismiss.tip":
+    "Zamyka tylko porównanie — nic nie zmienia.",
   "conflict.diff.identical":
     "Wersje są identyczne. Nic do porównania.",
   "conflict.diff.loadError": "Nie udało się odczytać wersji z dysku.",

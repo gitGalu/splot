@@ -1296,24 +1296,17 @@
 
 .btn:focus-visible {
   outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px var(--color-active);
+  border-color: var(--color-text-muted);
+  box-shadow: 0 0 0 2px var(--color-hover);
 }
 
+/* "Primary" still differs from the others — slightly stronger border
+ * and a touch darker text — but reads as a regular button, not a
+ * brand-colored CTA. Splot's UI stays neutral. */
 .btn--primary {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  color: #fbfaf7;
-}
-
-.btn--primary:hover {
-  background: var(--color-accent);
-  filter: brightness(0.95);
-}
-
-:root.theme-dark .btn--primary,
-:root:not(.theme-light) .btn--primary {
-  color: #1a1814;
+  border-color: var(--color-text-muted);
+  color: var(--color-text-strong);
+  font-weight: 500;
 }
 
 .btn--ghost {
@@ -1343,20 +1336,17 @@
  * something to acknowledge". */
 
 .conflict-banner {
-  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3) var(--space-4);
   align-items: center;
   margin: var(--space-3) var(--space-5);
-  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
   font-size: var(--font-size-ui);
   color: var(--color-text);
   background: var(--color-bg-raised);
-  border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-accent);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2);
-  box-shadow: var(--shadow-soft);
 }
 
 .conflict-banner-text {
@@ -1468,12 +1458,10 @@
 
 .diff-cell.is-changed.diff-cell--mine {
   background: var(--color-diff-mine-bg);
-  box-shadow: inset 2px 0 0 var(--color-diff-mine-marker);
 }
 
 .diff-cell.is-changed.diff-cell--theirs {
   background: var(--color-diff-theirs-bg);
-  box-shadow: inset 2px 0 0 var(--color-diff-theirs-marker);
 }
 
 .diff-cell.is-empty {
