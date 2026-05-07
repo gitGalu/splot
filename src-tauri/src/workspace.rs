@@ -657,6 +657,69 @@ pub fn cmd_move_entry(
     Ok(relative_string(&root, &target))
 }
 
+/// Rename an entry within its current parent directory. `new_name` must be a
+/// single path segment (no slashes); path-altering renames go through
+/// `cmd_move_entry` instead so this command can stay narrow and predictable.
+/// Returns the new relative path on success.
+#[tauri::command]
+pub fn cmd_rename_entry(
+    state: State<'_, WorkspaceState>,
+    from: String,
+    new_name: String,
+) -> Result<String, WorkspaceError> {
+    let src = state.resolve_within(&from)?;
+    if !src.exists() {
+        return Err(WorkspaceError::NotAFile);
+    }
+
+    let root = state.root()?;
+    let trash_root = root.join(TRASH_DIR_NAME);
+    if src == trash_root || src.starts_with(&trash_root) {
+        return Err(WorkspaceError::InvalidName);
+    }
+
+    // The new name must be a single segment — keep this command focused on
+    // rename-in-place. Splitting on the same separators as `parse_user_path`
+    // means a user trying to "rename into a folder" hits a clear validation
+    // error and can use Move instead.
+    let trimmed = new_name.trim();
+    if trimmed.is_empty() {
+        return Err(WorkspaceError::EmptyName);
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') || has_invalid_char(trimmed) {
+        return Err(WorkspaceError::InvalidName);
+    }
+
+    // For files, enforce the same supported-extension rule as create. Folders
+    // have no extension constraint.
+    if src.is_file() {
+        let ext = Path::new(trimmed)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_lowercase());
+        if !is_supported_text_ext(ext.as_deref()) {
+            return Err(WorkspaceError::UnsupportedFileType);
+        }
+    }
+
+    let parent = src
+        .parent()
+        .ok_or(WorkspaceError::InvalidName)?;
+    let target = parent.join(trimmed);
+
+    // No-op: same name as before.
+    if target == src {
+        return Ok(relative_string(&root, &src));
+    }
+
+    if target.exists() {
+        return Err(WorkspaceError::AlreadyExists);
+    }
+
+    fs::rename(&src, &target)?;
+    Ok(relative_string(&root, &target))
+}
+
 #[tauri::command]
 pub fn cmd_trash_entry(
     state: State<'_, WorkspaceState>,

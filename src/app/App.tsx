@@ -12,6 +12,7 @@ import { buildFileIndex } from "../services/fileIndex";
 import { WorkspaceSidebar } from "../features/workspace/WorkspaceSidebar";
 import { WorkspaceSwitcher } from "../features/workspace/WorkspaceSwitcher";
 import { MoveFileModal } from "../features/workspace/MoveFileModal";
+import { RenameFileModal } from "../features/workspace/RenameFileModal";
 import { EditorPane } from "../features/editor/EditorPane";
 import { sortTasks } from "../features/editor/task-toggle";
 import { EditorSelection } from "@codemirror/state";
@@ -57,6 +58,7 @@ export function App() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const { autosaveDelayMs, theme, showTrash, typewriterMode, focusMode } =
@@ -259,46 +261,68 @@ export function App() {
     }
   }, [open, provider, saving]);
 
+  const applyEntryPathChange = useCallback(
+    (from: string, newPath: string) => {
+      // Rewrite the path of the currently open file (or any descendant of a
+      // moved/renamed folder) so subsequent saves land at the new location.
+      setOpen((prev) => {
+        if (!prev) return prev;
+        if (prev.ref.path === from) {
+          const name = newPath.split("/").pop() ?? prev.ref.name;
+          return { ...prev, ref: { ...prev.ref, path: newPath, name } };
+        }
+        if (prev.ref.path.startsWith(`${from}/`)) {
+          const suffix = prev.ref.path.slice(from.length);
+          const rewired = `${newPath}${suffix}`;
+          return { ...prev, ref: { ...prev.ref, path: rewired } };
+        }
+        return prev;
+      });
+      // Migrate the remembered caret + last-open marker so navigation memory
+      // survives the rename/move.
+      if (tree) {
+        const root = tree.workspace.root;
+        const saved = getCursor(root, from);
+        if (saved != null) {
+          setCursor(root, newPath, saved);
+          forgetCursor(root, from);
+        }
+        if (getLastFile(root) === from) {
+          setLastFile(root, newPath);
+        }
+      }
+    },
+    [tree],
+  );
+
   const handleMove = useCallback(
     async (from: string, toDir: string) => {
       try {
         await flushPending();
         const newPath = await provider.moveEntry(from, toDir);
-        // If the moved entry was (or contained) the open file, rewrite its path
-        // so subsequent saves land at the new location.
-        setOpen((prev) => {
-          if (!prev) return prev;
-          if (prev.ref.path === from) {
-            const name = newPath.split("/").pop() ?? prev.ref.name;
-            return { ...prev, ref: { ...prev.ref, path: newPath, name } };
-          }
-          if (prev.ref.path.startsWith(`${from}/`)) {
-            const suffix = prev.ref.path.slice(from.length);
-            const rewired = `${newPath}${suffix}`;
-            return { ...prev, ref: { ...prev.ref, path: rewired } };
-          }
-          return prev;
-        });
-        // Migrate any remembered caret position to the new path so the user's
-        // cursor is still restored after a move.
-        if (tree) {
-          const root = tree.workspace.root;
-          const saved = getCursor(root, from);
-          if (saved != null) {
-            setCursor(root, newPath, saved);
-            forgetCursor(root, from);
-          }
-          if (getLastFile(root) === from) {
-            setLastFile(root, newPath);
-          }
-        }
+        applyEntryPathChange(from, newPath);
         await refreshTree();
         setError(null);
       } catch (e) {
         setError(formatError(e));
       }
     },
-    [provider, refreshTree, flushPending, tree],
+    [provider, refreshTree, flushPending, applyEntryPathChange],
+  );
+
+  const handleRename = useCallback(
+    async (from: string, newName: string) => {
+      try {
+        await flushPending();
+        const newPath = await provider.renameEntry(from, newName);
+        applyEntryPathChange(from, newPath);
+        await refreshTree();
+        setError(null);
+      } catch (e) {
+        setError(formatError(e));
+      }
+    },
+    [provider, refreshTree, flushPending, applyEntryPathChange],
   );
 
   const handleTrash = useCallback(
@@ -608,6 +632,14 @@ export function App() {
           setMoveOpen(true);
         },
       });
+      list.push({
+        id: "file.rename",
+        label: t("cmd.file.rename", { name: open.ref.name }),
+        group: FILE,
+        run: () => {
+          setRenameOpen(true);
+        },
+      });
 
       list.push({
         id: "editor.find",
@@ -828,6 +860,16 @@ export function App() {
           onConfirm={(targetDir) => {
             setMoveOpen(false);
             void handleMove(open.ref.path, targetDir);
+          }}
+        />
+      ) : null}
+      {renameOpen && open ? (
+        <RenameFileModal
+          fileName={open.ref.name}
+          onClose={() => setRenameOpen(false)}
+          onConfirm={(newName) => {
+            setRenameOpen(false);
+            void handleRename(open.ref.path, newName);
           }}
         />
       ) : null}

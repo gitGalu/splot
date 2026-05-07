@@ -119,8 +119,18 @@ const pl: Dict = {
   "cmd.workspace.remove": "Usuń {name} z listy",
   "cmd.file.trash": "Przenieś „{name}\" do kosza",
   "cmd.file.move": "Przenieś „{name}\" do folderu…",
+  "cmd.file.rename": "Zmień nazwę „{name}\"…",
   "cmd.editor.sortTasks": "Posortuj zadania (zrobione na koniec)",
   "cmd.editor.find": "Znajdź w pliku…",
+
+  // Rename file modal
+  "rename.mode": "Zmień nazwę",
+  "rename.title": "Zmień nazwę pliku",
+  "rename.placeholder": "Nowa nazwa dla „{name}\" (Enter zatwierdza)",
+  "rename.invalid": "Nazwa nie może być pusta ani zawierać „/\" lub „\\\".",
+  "rename.hint.unchanged": "Nazwa bez zmian.",
+  "rename.hint.willRename": "Nowa nazwa: {name}",
+  "rename.hint.run": "zmień nazwę",
 
   // Move file modal
   "move.mode": "Przenieś",
