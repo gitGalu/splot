@@ -174,22 +174,47 @@ jobs:
               },
               {
                 key: "windows-x86_64",
-                installerRe: /(?:x64|x86_64).*setup\.exe$|(?:x64|x86_64).*\.msi$/i,
-                // Windows .sig basename IS arch-tagged, no path disambiguation needed.
-                sigPathRe: /(?:x64|x86_64).*setup\.exe\.sig$|(?:x64|x86_64).*\.msi\.sig$/i,
+                // Windows builds emit BOTH NSIS (setup.exe) and WiX (.msi)
+                // installers with separate signatures. The updater config
+                // sets `installMode: passive` for NSIS, so pin to NSIS on
+                // both sides — picking installer and sig independently
+                // produced a setup.exe URL paired with a .msi signature
+                // (different hashes → "signature verification failed" on
+                // the user's machine).
+                installerRe: /(?:x64|x86_64).*setup\.exe$/i,
+                sigPathRe: /(?:x64|x86_64).*setup\.exe\.sig$/i,
               },
             ];
 
             const platforms = {};
             for (const t of targets) {
-              const installer = release.assets.find((a) => t.installerRe.test(a.name));
-              const sigPath = sigs.find((p) => t.sigPathRe.test(p));
-              if (!installer || !sigPath) {
+              // Use `filter` (not `find`) so an ambiguous regex fails loudly
+              // instead of silently picking whichever asset comes first.
+              // Mismatched pairs (e.g. setup.exe URL with a .msi signature)
+              // ship a broken latest.json that fails verification on the
+              // user's machine.
+              const installerCandidates = release.assets.filter((a) =>
+                t.installerRe.test(a.name),
+              );
+              const sigCandidates = sigs.filter((p) => t.sigPathRe.test(p));
+              if (installerCandidates.length === 0 || sigCandidates.length === 0) {
                 core.warning(
-                  `No installer/sig pair for ${t.key} — installer=${installer?.name}, sig=${sigPath}`,
+                  `No installer/sig pair for ${t.key} — installers=${installerCandidates.length}, sigs=${sigCandidates.length}`,
                 );
                 continue;
               }
+              if (installerCandidates.length > 1) {
+                throw new Error(
+                  `Ambiguous installer for ${t.key}: ${installerCandidates.map((a) => a.name).join(", ")}`,
+                );
+              }
+              if (sigCandidates.length > 1) {
+                throw new Error(
+                  `Ambiguous signature for ${t.key}: ${sigCandidates.join(", ")}`,
+                );
+              }
+              const installer = installerCandidates[0];
+              const sigPath = sigCandidates[0];
               // Tauri writes .sig files as base64 (decoded body starts with
               // `untrusted comment: …`). The updater reads the file as-is,
               // so latest.json must keep the base64 form. Validate by
