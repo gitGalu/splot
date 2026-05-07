@@ -28,6 +28,7 @@ import { CommandPalette, type Command } from "../features/commands/CommandPalett
 import { SettingsPanel } from "../features/settings/SettingsPanel";
 import { HelpModal } from "../features/help/HelpModal";
 import { UpdateModal } from "../features/updates/UpdateModal";
+import { ConflictDiffModal } from "../features/conflict/ConflictDiffModal";
 import { isUpdaterSupported } from "../services/updater";
 import {
   FONT_SIZE_DEFAULT,
@@ -61,6 +62,7 @@ export function App() {
   const [moveOpen, setMoveOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [externallyChanged, setExternallyChanged] = useState(false);
+  const [diffTheirs, setDiffTheirs] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const { autosaveDelayMs, theme, showTrash, typewriterMode, focusMode } =
@@ -280,7 +282,24 @@ export function App() {
           : prev,
       );
       setExternallyChanged(false);
+      setDiffTheirs(null);
       setError(null);
+    } catch (e) {
+      setError(formatError(e));
+    }
+  }, [provider]);
+
+  /**
+   * Pull the on-disk version on demand, used when the user clicks "Pokaż
+   * diff" on the conflict banner. We don't pre-fetch on every external
+   * change because most users will pick reload/keep without inspecting.
+   */
+  const openDiff = useCallback(async () => {
+    const cur = openRef.current;
+    if (!cur) return;
+    try {
+      const content = await provider.readFile(cur.ref.path);
+      setDiffTheirs(content.text);
     } catch (e) {
       setError(formatError(e));
     }
@@ -398,6 +417,7 @@ export function App() {
     if (watchedPathRef.current === path) return;
     watchedPathRef.current = path;
     setExternallyChanged(false);
+    setDiffTheirs(null);
     if (path) {
       void provider.watchFile(path).catch(() => {
         /* watcher is best-effort; a failure shouldn't surface to the user */
@@ -885,6 +905,13 @@ export function App() {
               <span className="conflict-banner-actions">
                 <button
                   type="button"
+                  className="conflict-banner-btn"
+                  onClick={() => void openDiff()}
+                >
+                  {t("conflict.showDiff")}
+                </button>
+                <button
+                  type="button"
                   className="conflict-banner-btn conflict-banner-btn--primary"
                   onClick={() => void reloadOpenFromDisk()}
                 >
@@ -893,7 +920,10 @@ export function App() {
                 <button
                   type="button"
                   className="conflict-banner-btn"
-                  onClick={() => setExternallyChanged(false)}
+                  onClick={() => {
+                    setExternallyChanged(false);
+                    setDiffTheirs(null);
+                  }}
                 >
                   {t("conflict.keepMine")}
                 </button>
@@ -969,6 +999,22 @@ export function App() {
           onConfirm={(newName) => {
             setRenameOpen(false);
             void handleRename(open.ref.path, newName);
+          }}
+        />
+      ) : null}
+      {diffTheirs !== null && open ? (
+        <ConflictDiffModal
+          fileName={open.ref.name}
+          mine={open.current}
+          theirs={diffTheirs}
+          onClose={() => setDiffTheirs(null)}
+          onReload={() => {
+            setDiffTheirs(null);
+            void reloadOpenFromDisk();
+          }}
+          onKeepMine={() => {
+            setDiffTheirs(null);
+            setExternallyChanged(false);
           }}
         />
       ) : null}

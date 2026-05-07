@@ -19,6 +19,13 @@ const pl: Dict = {
     "Plik „{name}\" został zmieniony poza Splotem, a masz niezapisane zmiany.",
   "conflict.reload": "Przeładuj z dysku",
   "conflict.keepMine": "Zachowaj moje (nadpisze przy zapisie)",
+  "conflict.showDiff": "Pokaż diff",
+  "conflict.diff.title": "Diff: {name}",
+  "conflict.diff.mine": "Twoja wersja (niezapisana)",
+  "conflict.diff.theirs": "Wersja na dysku",
+  "conflict.diff.dismiss": "Zamknij",
+  "conflict.diff.identical": "Bez różnic.",
+  "conflict.diff.loadError": "Nie udało się odczytać wersji z dysku.",
 
   // Workspace error kinds (from Rust WorkspaceError)
   "error.kind.NotInitialized": "Przestrzeń nie jest zainicjalizowana",

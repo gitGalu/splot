@@ -1342,3 +1342,97 @@
   background: var(--color-accent, var(--color-surface));
   color: var(--color-accent-foreground, var(--color-text));
 }
+
+/* Diff modal --------------------------------------------------------------- */
+
+.diff-panel {
+  width: min(1080px, 96vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.diff-panel .settings-header {
+  flex: 0 0 auto;
+}
+
+.diff-headers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-sunken, var(--color-hover));
+}
+
+.diff-col-header {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-ui-small);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.diff-col-header--theirs {
+  border-left: 1px solid var(--color-border);
+}
+
+.diff-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.diff-empty {
+  padding: var(--space-5);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-ui-small);
+}
+
+.diff-cell {
+  vertical-align: top;
+  width: 50%;
+  padding: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.diff-cell--theirs {
+  border-left: 1px solid var(--color-border);
+}
+
+.diff-cell.is-changed.diff-cell--mine {
+  background: rgba(220, 60, 60, 0.12);
+}
+
+.diff-cell.is-changed.diff-cell--theirs {
+  background: rgba(60, 160, 60, 0.14);
+}
+
+.diff-cell.is-empty {
+  background: var(--color-surface-sunken, var(--color-hover));
+}
+
+.diff-text {
+  margin: 0;
+  padding: 2px var(--space-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  color: var(--color-text);
+  min-height: 1.4em;
+}
+
+.diff-footer {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface, var(--color-bg));
+}
