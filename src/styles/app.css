@@ -834,8 +834,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  direction: rtl;
-  text-align: left;
+  /* Note: do NOT use `direction: rtl` here. The path is always logically
+   * LTR (filenames flow left-to-right), and an RTL container reorders
+   * runs of digits separated by punctuation — for example, `25.md` was
+   * rendering as `md.25`. Whatever the user types is appended at the end
+   * anyway, so left-to-right truncation is fine in practice. */
   min-width: 0;
   flex: 1;
 }
