@@ -434,10 +434,9 @@ export function App() {
 
   // Subscribe to the backend's `file:changed` event. If it's our file:
   //   - clean state (no pending edits)  → silent reload, preserving caret;
-  //   - dirty (in-flight changes)       → mark conflict + auto-open diff.
-  // Showing the diff up front beats a banner with three buttons because the
-  // user almost always wants to see what changed before deciding. The banner
-  // remains as a fallback after they close the modal without resolving.
+  //   - dirty (in-flight changes)       → show a discreet banner with one
+  //     entry point ("Pokaż różnice") into the diff modal where the actual
+  //     resolution choices live.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
@@ -446,7 +445,6 @@ export function App() {
       if (!cur || cur.ref.path !== event.payload.path) return;
       if (isDirty(cur)) {
         setExternallyChanged(true);
-        void openDiff();
       } else {
         void reloadOpenFromDisk();
       }
@@ -461,7 +459,7 @@ export function App() {
       cancelled = true;
       unlisten?.();
     };
-  }, [reloadOpenFromDisk, openDiff]);
+  }, [reloadOpenFromDisk]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -917,17 +915,6 @@ export function App() {
                   onClick={() => void openDiff()}
                 >
                   {t("conflict.showDiff")}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--small"
-                  title={t("conflict.keepMine.tip")}
-                  onClick={() => {
-                    setExternallyChanged(false);
-                    setDiffTheirs(null);
-                  }}
-                >
-                  {t("conflict.keepMine")}
                 </button>
               </div>
             </div>
