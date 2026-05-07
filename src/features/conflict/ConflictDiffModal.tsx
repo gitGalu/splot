@@ -224,7 +224,7 @@ export function ConflictDiffModal({
         <footer className="diff-footer">
           <button
             type="button"
-            className="btn btn--primary"
+            className="btn"
             title={t("conflict.reload.tip")}
             onClick={onReload}
           >
@@ -241,7 +241,7 @@ export function ConflictDiffModal({
           <span className="diff-footer-spacer" />
           <button
             type="button"
-            className="btn btn--ghost"
+            className="btn"
             title={t("conflict.diff.dismiss.tip")}
             onClick={onClose}
           >

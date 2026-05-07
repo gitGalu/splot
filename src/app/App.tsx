@@ -908,7 +908,7 @@ export function App() {
               <div className="conflict-banner-actions">
                 <button
                   type="button"
-                  className="btn btn--ghost btn--small"
+                  className="btn btn--small"
                   title={t("conflict.showDiff.tip")}
                   onClick={() => void openDiff()}
                 >
@@ -927,7 +927,7 @@ export function App() {
                 </button>
                 <button
                   type="button"
-                  className="btn btn--primary btn--small"
+                  className="btn btn--small"
                   title={t("conflict.reload.tip")}
                   onClick={() => void reloadOpenFromDisk()}
                 >
