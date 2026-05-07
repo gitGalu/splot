@@ -434,7 +434,10 @@ export function App() {
 
   // Subscribe to the backend's `file:changed` event. If it's our file:
   //   - clean state (no pending edits)  → silent reload, preserving caret;
-  //   - dirty (in-flight changes)       → show the conflict banner.
+  //   - dirty (in-flight changes)       → mark conflict + auto-open diff.
+  // Showing the diff up front beats a banner with three buttons because the
+  // user almost always wants to see what changed before deciding. The banner
+  // remains as a fallback after they close the modal without resolving.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
@@ -443,6 +446,7 @@ export function App() {
       if (!cur || cur.ref.path !== event.payload.path) return;
       if (isDirty(cur)) {
         setExternallyChanged(true);
+        void openDiff();
       } else {
         void reloadOpenFromDisk();
       }
@@ -457,7 +461,7 @@ export function App() {
       cancelled = true;
       unlisten?.();
     };
-  }, [reloadOpenFromDisk]);
+  }, [reloadOpenFromDisk, openDiff]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -924,14 +928,6 @@ export function App() {
                   }}
                 >
                   {t("conflict.keepMine")}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--small"
-                  title={t("conflict.reload.tip")}
-                  onClick={() => void reloadOpenFromDisk()}
-                >
-                  {t("conflict.reload")}
                 </button>
               </div>
             </div>
