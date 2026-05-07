@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { t } from "../../i18n/i18n";
-import { formatShortcut } from "../../services/keyLabel";
+import { formatShortcut, isMac } from "../../services/keyLabel";
 
 interface Props {
   onClose: () => void;
@@ -61,6 +61,17 @@ const SECTIONS: Section[] = [
       { spec: "Mod+F", labelKey: "help.editor.find" },
       { spec: "Mod+G", labelKey: "help.editor.findNext" },
       { spec: "Mod+Shift+G", labelKey: "help.editor.findPrev" },
+    ],
+  },
+  // Voice dictation uses the OS shortcut, not anything Splot owns. The
+  // shortcut is platform-specific so we show only the relevant one rather
+  // than listing both on every machine.
+  {
+    titleKey: "help.section.dictation",
+    items: [
+      isMac
+        ? { literal: ["fn", "fn"], labelKey: "help.dictation.start" }
+        : { literal: ["Win", "H"], labelKey: "help.dictation.start" },
     ],
   },
 ];

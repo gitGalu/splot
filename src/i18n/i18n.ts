@@ -238,6 +238,9 @@ const pl: Dict = {
   "help.editor.find": "Znajdź / zamień w pliku",
   "help.editor.findNext": "Następne dopasowanie",
   "help.editor.findPrev": "Poprzednie dopasowanie",
+  "help.section.dictation": "Dyktowanie",
+  "help.dictation.start":
+    "Pisanie głosem (systemowe — działa w każdym polu tekstowym)",
   "help.md.headings": "# Nagłówek, ## Podnagłówek, ### …",
   "help.md.emphasis": "*kursywa* lub _kursywa_",
   "help.md.strong": "**pogrubienie**",
