@@ -1335,6 +1335,17 @@
  * muted detail, accent stripe on the left to read "this is a status,
  * something to acknowledge". */
 
+@keyframes conflict-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .conflict-banner {
   display: flex;
   flex-wrap: wrap;
@@ -1346,7 +1357,18 @@
   color: var(--color-danger-text);
   background: var(--color-danger-bg);
   border: 1px solid var(--color-danger-border);
+  border-left: 3px solid var(--color-danger-text);
   border-radius: var(--radius-2);
+  box-shadow: 0 1px 4px rgba(138, 42, 42, 0.12);
+  animation: conflict-banner-in 180ms ease-out;
+}
+
+.conflict-banner-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-danger-text);
 }
 
 .conflict-banner-text {
