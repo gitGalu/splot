@@ -933,6 +933,18 @@ export function App() {
                   {t("conflict.showDiff")}
                 </button>
               </div>
+              <button
+                type="button"
+                className="conflict-banner-close"
+                title={t("conflict.dismiss.tip")}
+                aria-label={t("conflict.dismiss")}
+                onClick={() => {
+                  setExternallyChanged(false);
+                  setDiffTheirs(null);
+                }}
+              >
+                ×
+              </button>
             </div>
           ) : null}
           {open && tree ? (

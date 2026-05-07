@@ -26,6 +26,9 @@ const pl: Dict = {
   "conflict.showDiff": "Pokaż różnice",
   "conflict.showDiff.tip":
     "Porównaj swoją wersję z tym, co jest teraz na dysku.",
+  "conflict.dismiss": "Zamknij",
+  "conflict.dismiss.tip":
+    "Schowaj komunikat. Banner wróci, jeśli plik znów zmieni się na dysku.",
   "conflict.diff.title": "Różnice — {name}",
   "conflict.diff.mine": "Twoja wersja (w edytorze)",
   "conflict.diff.theirs": "Wersja na dysku",
