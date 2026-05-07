@@ -14,6 +14,10 @@ interface Props {
 }
 
 interface Row {
+  /** 1-based line number on the "mine" side, or null when the cell is blank. */
+  mineNo: number | null;
+  /** 1-based line number on the "theirs" side, or null when the cell is blank. */
+  theirsNo: number | null;
   /** Line text on the "mine" column, or null when only "theirs" has a line here. */
   mine: string | null;
   /** Line text on the "theirs" column, or null when only "mine" has a line. */
@@ -30,23 +34,33 @@ interface Row {
  * pair up against added runs (only in `theirs`) line-by-line; whichever side
  * has more lines gets blank rows on the other side.
  *
- * This is intentionally line-granular and read-only — picking individual
- * hunks, or word-level sub-diffs, would be a separate (bigger) feature.
+ * Tracks 1-based line numbers per side so the rendered gutter matches what
+ * the user would see in their editor — blank rows leave the number column
+ * empty rather than incrementing it. Read-only by design; picking
+ * individual hunks would be a separate, bigger feature.
  */
 function buildRows(mine: string, theirs: string): Row[] {
   const parts = diffLines(mine, theirs);
   const rows: Row[] = [];
+  let mineLine = 1;
+  let theirsLine = 1;
 
-  // diffLines emits parts in order. Pair consecutive removed/added runs;
-  // anything that's a standalone removed (no following added) is a pure
-  // deletion, anything standalone added is a pure insertion.
   let i = 0;
   while (i < parts.length) {
     const part = parts[i];
     const lines = stripTrailingNewline(part.value).split("\n");
     if (!part.added && !part.removed) {
       for (const line of lines) {
-        rows.push({ mine: line, theirs: line, mineChanged: false, theirsChanged: false });
+        rows.push({
+          mineNo: mineLine,
+          theirsNo: theirsLine,
+          mine: line,
+          theirs: line,
+          mineChanged: false,
+          theirsChanged: false,
+        });
+        mineLine += 1;
+        theirsLine += 1;
       }
       i += 1;
       continue;
@@ -57,25 +71,47 @@ function buildRows(mine: string, theirs: string): Row[] {
         const nextLines = stripTrailingNewline(next.value).split("\n");
         const max = Math.max(lines.length, nextLines.length);
         for (let k = 0; k < max; k++) {
+          const hasMine = k < lines.length;
+          const hasTheirs = k < nextLines.length;
           rows.push({
-            mine: k < lines.length ? lines[k] : null,
-            theirs: k < nextLines.length ? nextLines[k] : null,
-            mineChanged: k < lines.length,
-            theirsChanged: k < nextLines.length,
+            mineNo: hasMine ? mineLine : null,
+            theirsNo: hasTheirs ? theirsLine : null,
+            mine: hasMine ? lines[k] : null,
+            theirs: hasTheirs ? nextLines[k] : null,
+            mineChanged: hasMine,
+            theirsChanged: hasTheirs,
           });
+          if (hasMine) mineLine += 1;
+          if (hasTheirs) theirsLine += 1;
         }
         i += 2;
         continue;
       }
       for (const line of lines) {
-        rows.push({ mine: line, theirs: null, mineChanged: true, theirsChanged: false });
+        rows.push({
+          mineNo: mineLine,
+          theirsNo: null,
+          mine: line,
+          theirs: null,
+          mineChanged: true,
+          theirsChanged: false,
+        });
+        mineLine += 1;
       }
       i += 1;
       continue;
     }
     // pure added
     for (const line of lines) {
-      rows.push({ mine: null, theirs: line, mineChanged: false, theirsChanged: true });
+      rows.push({
+        mineNo: null,
+        theirsNo: theirsLine,
+        mine: null,
+        theirs: line,
+        mineChanged: false,
+        theirsChanged: true,
+      });
+      theirsLine += 1;
     }
     i += 1;
   }
@@ -96,6 +132,7 @@ export function ConflictDiffModal({
 }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const rows = useMemo(() => buildRows(mine, theirs), [mine, theirs]);
+  const identical = mine === theirs;
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -121,10 +158,7 @@ export function ConflictDiffModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="settings-panel diff-panel"
-        onKeyDown={onKeyDown}
-      >
+      <div className="settings-panel diff-panel" onKeyDown={onKeyDown}>
         <header className="settings-header">
           <h2 className="settings-title">
             {t("conflict.diff.title", { name: fileName })}
@@ -139,29 +173,45 @@ export function ConflictDiffModal({
             ×
           </button>
         </header>
-        <div className="diff-headers">
-          <div className="diff-col-header diff-col-header--mine">
-            {t("conflict.diff.mine")}
-          </div>
-          <div className="diff-col-header diff-col-header--theirs">
-            {t("conflict.diff.theirs")}
-          </div>
-        </div>
-        <div className="diff-body" role="region" aria-label={t("conflict.diff.title", { name: fileName })}>
-          {rows.length === 0 ? (
+        <div
+          className="diff-body"
+          role="region"
+          aria-label={t("conflict.diff.title", { name: fileName })}
+        >
+          {identical ? (
             <div className="diff-empty">{t("conflict.diff.identical")}</div>
           ) : (
             <table className="diff-table">
+              <thead>
+                <tr>
+                  <th colSpan={2}>{t("conflict.diff.mine")}</th>
+                  <th colSpan={2}>{t("conflict.diff.theirs")}</th>
+                </tr>
+              </thead>
               <tbody>
                 {rows.map((row, idx) => (
-                  <tr key={idx}>
+                  <tr key={idx} className="diff-row">
+                    <td className="diff-gutter diff-gutter--mine">
+                      {row.mineNo ?? ""}
+                    </td>
                     <td
-                      className={`diff-cell diff-cell--mine ${row.mineChanged ? "is-changed" : ""} ${row.mine === null ? "is-empty" : ""}`}
+                      className={
+                        "diff-cell diff-cell--mine" +
+                        (row.mineChanged ? " is-changed" : "") +
+                        (row.mine === null ? " is-empty" : "")
+                      }
                     >
                       <pre className="diff-text">{row.mine ?? ""}</pre>
                     </td>
+                    <td className="diff-gutter diff-gutter--theirs">
+                      {row.theirsNo ?? ""}
+                    </td>
                     <td
-                      className={`diff-cell diff-cell--theirs ${row.theirsChanged ? "is-changed" : ""} ${row.theirs === null ? "is-empty" : ""}`}
+                      className={
+                        "diff-cell diff-cell--theirs" +
+                        (row.theirsChanged ? " is-changed" : "") +
+                        (row.theirs === null ? " is-empty" : "")
+                      }
                     >
                       <pre className="diff-text">{row.theirs ?? ""}</pre>
                     </td>
@@ -172,25 +222,14 @@ export function ConflictDiffModal({
           )}
         </div>
         <footer className="diff-footer">
-          <button
-            type="button"
-            className="conflict-banner-btn conflict-banner-btn--primary"
-            onClick={onReload}
-          >
+          <button type="button" className="btn btn--primary" onClick={onReload}>
             {t("conflict.reload")}
           </button>
-          <button
-            type="button"
-            className="conflict-banner-btn"
-            onClick={onKeepMine}
-          >
+          <button type="button" className="btn" onClick={onKeepMine}>
             {t("conflict.keepMine")}
           </button>
-          <button
-            type="button"
-            className="conflict-banner-btn"
-            onClick={onClose}
-          >
+          <span className="diff-footer-spacer" />
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
             {t("conflict.diff.dismiss")}
           </button>
         </footer>

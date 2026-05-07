@@ -15,16 +15,18 @@ const pl: Dict = {
   "error.unknown": "Nieznany błąd",
 
   // External-change conflict banner
-  "conflict.message":
-    "Plik „{name}\" został zmieniony poza Splotem, a masz niezapisane zmiany.",
+  "conflict.title": "Plik zmieniony poza Splotem",
+  "conflict.detail":
+    "„{name}\" został zmieniony na dysku, a masz niezapisane zmiany w edytorze.",
   "conflict.reload": "Przeładuj z dysku",
-  "conflict.keepMine": "Zachowaj moje (nadpisze przy zapisie)",
-  "conflict.showDiff": "Pokaż diff",
-  "conflict.diff.title": "Diff: {name}",
-  "conflict.diff.mine": "Twoja wersja (niezapisana)",
+  "conflict.keepMine": "Zachowaj moje",
+  "conflict.showDiff": "Pokaż różnice",
+  "conflict.diff.title": "Różnice — {name}",
+  "conflict.diff.mine": "Twoja wersja",
   "conflict.diff.theirs": "Wersja na dysku",
   "conflict.diff.dismiss": "Zamknij",
-  "conflict.diff.identical": "Bez różnic.",
+  "conflict.diff.identical":
+    "Wersje są identyczne. Nic do porównania.",
   "conflict.diff.loadError": "Nie udało się odczytać wersji z dysku.",
 
   // Workspace error kinds (from Rust WorkspaceError)

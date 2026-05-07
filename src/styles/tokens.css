@@ -53,6 +53,14 @@
   --color-danger-text: #8a2a2a;
   --color-danger-border: rgba(138, 42, 42, 0.25);
 
+  /* Diff highlights — warm-tone "before" (deletion) and a muted sage
+   * "after" (addition). Tuned to look at home in Splot's brown palette
+   * rather than the saturated red/green most diff viewers use. */
+  --color-diff-mine-bg: rgba(180, 90, 60, 0.10);
+  --color-diff-mine-marker: rgba(180, 90, 60, 0.55);
+  --color-diff-theirs-bg: rgba(80, 120, 80, 0.12);
+  --color-diff-theirs-marker: rgba(80, 120, 80, 0.55);
+
   --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.04);
 }
 
@@ -80,6 +88,11 @@
     --color-danger-text: #f3b7b7;
     --color-danger-border: rgba(243, 183, 183, 0.2);
 
+    --color-diff-mine-bg: rgba(215, 130, 100, 0.14);
+    --color-diff-mine-marker: rgba(215, 130, 100, 0.6);
+    --color-diff-theirs-bg: rgba(150, 180, 140, 0.13);
+    --color-diff-theirs-marker: rgba(150, 180, 140, 0.55);
+
     --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.4);
   }
 }
@@ -101,6 +114,11 @@
   --color-danger-bg: #3a1d1d;
   --color-danger-text: #f3b7b7;
   --color-danger-border: rgba(243, 183, 183, 0.2);
+
+  --color-diff-mine-bg: rgba(215, 130, 100, 0.14);
+  --color-diff-mine-marker: rgba(215, 130, 100, 0.6);
+  --color-diff-theirs-bg: rgba(150, 180, 140, 0.13);
+  --color-diff-theirs-marker: rgba(150, 180, 140, 0.55);
 
   --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.4);
 }

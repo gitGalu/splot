@@ -899,27 +899,23 @@ export function App() {
           {error ? <div className="error-banner">{error}</div> : null}
           {externallyChanged && open ? (
             <div className="conflict-banner" role="alert">
-              <span className="conflict-banner-text">
-                {t("conflict.message", { name: open.ref.name })}
-              </span>
-              <span className="conflict-banner-actions">
+              <div className="conflict-banner-text">
+                <strong>{t("conflict.title")}</strong>
+                <span className="conflict-banner-detail">
+                  {t("conflict.detail", { name: open.ref.name })}
+                </span>
+              </div>
+              <div className="conflict-banner-actions">
                 <button
                   type="button"
-                  className="conflict-banner-btn"
+                  className="btn btn--ghost btn--small"
                   onClick={() => void openDiff()}
                 >
                   {t("conflict.showDiff")}
                 </button>
                 <button
                   type="button"
-                  className="conflict-banner-btn conflict-banner-btn--primary"
-                  onClick={() => void reloadOpenFromDisk()}
-                >
-                  {t("conflict.reload")}
-                </button>
-                <button
-                  type="button"
-                  className="conflict-banner-btn"
+                  className="btn btn--small"
                   onClick={() => {
                     setExternallyChanged(false);
                     setDiffTheirs(null);
@@ -927,7 +923,14 @@ export function App() {
                 >
                   {t("conflict.keepMine")}
                 </button>
-              </span>
+                <button
+                  type="button"
+                  className="btn btn--primary btn--small"
+                  onClick={() => void reloadOpenFromDisk()}
+                >
+                  {t("conflict.reload")}
+                </button>
+              </div>
             </div>
           ) : null}
           {open && tree ? (

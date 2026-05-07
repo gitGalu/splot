@@ -127,7 +127,7 @@ function UpdateBody({ status, onRecheck, onInstall }: BodyProps) {
         <section className="settings-section">
           <p>{t("update.upToDate")}</p>
           <div className="settings-actions">
-            <button type="button" className="settings-action" onClick={onRecheck}>
+            <button type="button" className="btn" onClick={onRecheck}>
               {t("update.recheck")}
             </button>
           </div>
@@ -154,7 +154,7 @@ function UpdateBody({ status, onRecheck, onInstall }: BodyProps) {
           <div className="settings-actions">
             <button
               type="button"
-              className="settings-action settings-action--primary"
+              className="btn btn--primary"
               onClick={onInstall}
             >
               {t("update.install")}
@@ -199,7 +199,7 @@ function UpdateBody({ status, onRecheck, onInstall }: BodyProps) {
         <section className="settings-section">
           <p className="error-banner">{status.message}</p>
           <div className="settings-actions">
-            <button type="button" className="settings-action" onClick={onRecheck}>
+            <button type="button" className="btn" onClick={onRecheck}>
               {t("update.recheck")}
             </button>
           </div>

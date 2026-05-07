@@ -1241,151 +1241,176 @@
   margin-top: var(--space-3);
 }
 
-.update-panel .settings-action {
-  appearance: none;
-  font: inherit;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-2);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.update-panel .settings-action:hover {
-  background: var(--color-hover);
-}
-
-.update-panel .settings-action--primary {
-  border-color: var(--color-accent, var(--color-border));
-  background: var(--color-accent, var(--color-surface));
-  color: var(--color-accent-foreground, var(--color-text));
-}
-
-.update-panel .settings-action[disabled] {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .update-notes {
-  margin: var(--space-2) 0 0;
-  padding: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-4);
   max-height: 240px;
   overflow: auto;
   white-space: pre-wrap;
   font: inherit;
   font-size: var(--font-size-ui-small);
+  line-height: var(--line-height-ui);
   color: var(--color-text-muted);
-  background: var(--color-surface-sunken, var(--color-hover));
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2);
 }
 
 .update-progress {
-  margin-top: var(--space-2);
-  height: 6px;
-  background: var(--color-surface-sunken, var(--color-hover));
-  border-radius: var(--radius-1);
+  margin-top: var(--space-3);
+  height: 4px;
+  background: var(--color-hover);
+  border-radius: 999px;
   overflow: hidden;
 }
 
 .update-progress-bar {
   height: 100%;
-  background: var(--color-accent, var(--color-text-muted));
+  background: var(--color-accent);
   transition: width 120ms ease-out;
 }
 
+/* Splot button — shared across modals (settings, update, conflict, diff).
+ * Reuses the same chrome as the rest of the UI: subtle border, neutral
+ * background, accent fill when promoted to primary. Earlier code paths
+ * defined ad-hoc buttons (.conflict-banner-btn, .update-panel
+ * .settings-action, etc.); they all collapse into this. */
+
+.btn {
+  appearance: none;
+  font: inherit;
+  font-size: var(--font-size-ui);
+  line-height: 1.2;
+  padding: 6px 12px;
+  border-radius: var(--radius-2);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-raised);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease;
+}
+
+.btn:hover {
+  background: var(--color-hover);
+}
+
+.btn:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-active);
+}
+
+.btn--primary {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #fbfaf7;
+}
+
+.btn--primary:hover {
+  background: var(--color-accent);
+  filter: brightness(0.95);
+}
+
+:root.theme-dark .btn--primary,
+:root:not(.theme-light) .btn--primary {
+  color: #1a1814;
+}
+
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn--ghost:hover {
+  background: var(--color-hover);
+  border-color: var(--color-border);
+}
+
+.btn--small {
+  font-size: var(--font-size-ui-small);
+  padding: 4px 10px;
+}
+
+.btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* External-change conflict banner ----------------------------------------- */
+/* A status notice, not an error. Lives at the top of the editor pane and
+ * carries three actions. Echo the editor's reading rhythm — short title,
+ * muted detail, accent stripe on the left to read "this is a status,
+ * something to acknowledge". */
 
 .conflict-banner {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-3) var(--space-4);
   align-items: center;
   margin: var(--space-3) var(--space-5);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-ui-small);
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
+  font-size: var(--font-size-ui);
   color: var(--color-text);
-  background: var(--color-surface-sunken, var(--color-hover));
+  background: var(--color-bg-raised);
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-2);
+  box-shadow: var(--shadow-soft);
 }
 
 .conflict-banner-text {
   flex: 1;
-  min-width: 220px;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: var(--line-height-ui);
+}
+
+.conflict-banner-text strong {
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+.conflict-banner-detail {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-ui-small);
 }
 
 .conflict-banner-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.conflict-banner-btn {
-  appearance: none;
-  font: inherit;
-  font-size: var(--font-size-ui-small);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-2);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.conflict-banner-btn:hover {
-  background: var(--color-hover);
-}
-
-.conflict-banner-btn--primary {
-  border-color: var(--color-accent, var(--color-border));
-  background: var(--color-accent, var(--color-surface));
-  color: var(--color-accent-foreground, var(--color-text));
-}
-
 /* Diff modal --------------------------------------------------------------- */
+/* Reuses the same panel chrome as Settings/Help — same radius, border,
+ * shadow — so it reads as part of the same family of dialogs. The body
+ * is a two-column scroller with a sticky header row that says which
+ * side is which without yelling. */
 
 .diff-panel {
-  width: min(1080px, 96vw);
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
+  width: min(1080px, calc(100% - var(--space-7)));
+  max-height: 84vh;
 }
 
 .diff-panel .settings-header {
   flex: 0 0 auto;
 }
 
-.diff-headers {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-sunken, var(--color-hover));
-}
-
-.diff-col-header {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-ui-small);
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.diff-col-header--theirs {
-  border-left: 1px solid var(--color-border);
-}
-
 .diff-body {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  background: var(--color-bg);
 }
 
 .diff-empty {
-  padding: var(--space-5);
+  padding: var(--space-7) var(--space-5);
   color: var(--color-text-muted);
   text-align: center;
+  font-size: var(--font-size-ui);
 }
 
 .diff-table {
@@ -1393,46 +1418,99 @@
   border-collapse: collapse;
   font-family: var(--font-mono);
   font-size: var(--font-size-ui-small);
+  line-height: 1.55;
+}
+
+/* Sticky column headers — render as a real <thead> row so the table
+ * grid stays consistent and headers track the body when the user
+ * scrolls horizontally on a narrow window. */
+.diff-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-2) var(--space-4);
+  text-align: left;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  background: var(--color-bg-raised);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.diff-table thead th + th {
+  border-left: 1px solid var(--color-border);
+}
+
+.diff-gutter {
+  width: 3em;
+  padding: 0 var(--space-2) 0 var(--space-2);
+  text-align: right;
+  vertical-align: top;
+  color: var(--color-text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  background: var(--color-bg-raised);
+  line-height: 1.55;
+}
+
+.diff-gutter--theirs {
+  border-left: 1px solid var(--color-border);
 }
 
 .diff-cell {
   vertical-align: top;
-  width: 50%;
   padding: 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.diff-cell--theirs {
-  border-left: 1px solid var(--color-border);
 }
 
 .diff-cell.is-changed.diff-cell--mine {
-  background: rgba(220, 60, 60, 0.12);
+  background: var(--color-diff-mine-bg);
+  box-shadow: inset 2px 0 0 var(--color-diff-mine-marker);
 }
 
 .diff-cell.is-changed.diff-cell--theirs {
-  background: rgba(60, 160, 60, 0.14);
+  background: var(--color-diff-theirs-bg);
+  box-shadow: inset 2px 0 0 var(--color-diff-theirs-marker);
 }
 
 .diff-cell.is-empty {
-  background: var(--color-surface-sunken, var(--color-hover));
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 6px,
+    var(--color-hover) 6px,
+    var(--color-hover) 7px
+  );
 }
 
 .diff-text {
   margin: 0;
-  padding: 2px var(--space-3);
+  padding: 2px var(--space-4);
   white-space: pre-wrap;
   word-break: break-word;
   font: inherit;
   color: var(--color-text);
-  min-height: 1.4em;
+  min-height: 1.55em;
+  tab-size: 4;
+}
+
+.diff-text:empty::before {
+  content: " ";
 }
 
 .diff-footer {
   flex: 0 0 auto;
   display: flex;
+  align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-5);
   border-top: 1px solid var(--color-border);
-  background: var(--color-surface, var(--color-bg));
+  background: var(--color-bg-raised);
+}
+
+.diff-footer-spacer {
+  flex: 1;
 }
