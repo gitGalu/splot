@@ -79,6 +79,19 @@ jobs:
           generateReleaseNotes: true
           args: ${{ matrix.args }}
 
+      # Hand the .sig blobs to the manifest job through workflow artifacts
+      # rather than re-downloading them from the draft release. Reading
+      # asset bytes through the API has unpredictable redirect/auth quirks;
+      # workflow artifacts are the boring, reliable path.
+      - name: Upload updater signatures
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-sigs-${{ matrix.name }}
+          path: |
+            src-tauri/target/**/release/bundle/**/*.sig
+          if-no-files-found: error
+          retention-days: 1
+
   # tauri-action emits its own per-job latest.json, so a matrix run causes
   # them to overwrite each other on the draft. Build the canonical latest.json
   # from the signatures uploaded to the release once all platform jobs are
@@ -87,19 +100,32 @@ jobs:
     needs: build
     runs-on: ubuntu-22.04
     steps:
-      - name: Build latest.json from release signatures
+      - name: Download updater signatures
+        uses: actions/download-artifact@v4
+        with:
+          path: sigs
+          pattern: updater-sigs-*
+          merge-multiple: true
+
+      - name: List signatures
+        run: find sigs -type f
+
+      - name: Build & upload latest.json
         uses: actions/github-script@v7
         env:
           TAG: ${{ github.ref_name }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           script: |
+            const fs = require("fs");
+            const path = require("path");
+
             const tag = process.env.TAG;
             const version = tag.replace(/^v/, "");
+            const repoSlug = `${context.repo.owner}/${context.repo.repo}`;
 
             // Drafts created by tauri-action carry a `tag_name` but no real
             // git tag yet, so `getReleaseByTag` 404s. Page through releases
-            // and pick the draft (or published, on a re-run) that matches.
+            // and pick the one matching our tag.
             const releases = await github.paginate(github.rest.repos.listReleases, {
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -111,11 +137,23 @@ jobs:
               return;
             }
 
-            const assets = release.assets;
-            const findAsset = (predicate) => assets.find(predicate);
+            // Walk the artifact tree and collect every .sig by basename.
+            // Tauri places each in src-tauri/target/<triple>/release/bundle/
+            // <bundleType>/, but actions/upload-artifact preserves only the
+            // path under the workspace root, so we just recurse.
+            const sigs = new Map();
+            const walk = (dir) => {
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) walk(full);
+                else if (entry.name.endsWith(".sig")) sigs.set(entry.name, full);
+              }
+            };
+            walk("sigs");
 
-            // Map a Tauri updater target (`darwin-aarch64`, `darwin-x86_64`,
-            // `windows-x86_64`) to its installer + signature pair.
+            // Map Tauri updater target keys to their installer + sig file
+            // patterns. Names come from tauri-action's bundling output and
+            // line up 1:1 with the release assets uploaded to the draft.
             const targets = [
               {
                 key: "darwin-aarch64",
@@ -134,63 +172,36 @@ jobs:
               },
             ];
 
-            // Drafts aren't reachable through `browser_download_url` without a
-            // session cookie, and once published the URL changes from
-            // `releases/download/untagged-<sha>/...` to
-            // `releases/download/<tag>/...`. We need both:
-            //   - to read the .sig now (draft) → use the assets API with
-            //     `Accept: application/octet-stream` and a token,
-            //   - the installer URL embedded in latest.json must resolve
-            //     after publication → construct `releases/download/<tag>/<name>`
-            //     ourselves so it doesn't rot when the draft is published.
-            const repoSlug = `${context.repo.owner}/${context.repo.repo}`;
-
-            const fetchAssetText = async (assetId) => {
-              const res = await fetch(
-                `https://api.github.com/repos/${repoSlug}/releases/assets/${assetId}`,
-                {
-                  headers: {
-                    Accept: "application/octet-stream",
-                    Authorization: `token ${process.env.GITHUB_TOKEN}`,
-                    "User-Agent": "splot-release-workflow",
-                  },
-                  redirect: "follow",
-                },
-              );
-              if (!res.ok) {
-                throw new Error(
-                  `Asset ${assetId} download failed: HTTP ${res.status}`,
-                );
-              }
-              return await res.text();
-            };
-
             const platforms = {};
             for (const t of targets) {
-              const installer = findAsset((a) => t.installerRe.test(a.name));
-              const sig = findAsset((a) => t.sigRe.test(a.name));
-              if (!installer || !sig) {
-                core.warning(`No installer/sig pair for ${t.key} — skipping`);
+              const installer = release.assets.find((a) => t.installerRe.test(a.name));
+              const sigEntry = [...sigs.entries()].find(([name]) => t.sigRe.test(name));
+              if (!installer || !sigEntry) {
+                core.warning(
+                  `No installer/sig pair for ${t.key} — installer=${installer?.name}, sig=${sigEntry?.[0]}`,
+                );
                 continue;
               }
-              const sigBody = (await fetchAssetText(sig.id)).trim();
-              // Minisign signatures start with `untrusted comment:` — anything
-              // else (HTML 404 page, empty body) is a fetch problem we'd
-              // rather fail loudly on than embed in the manifest.
+              const sigBody = fs.readFileSync(sigEntry[1], "utf8").trim();
               if (!sigBody.startsWith("untrusted comment:")) {
                 throw new Error(
-                  `Signature for ${t.key} (${sig.name}) does not look like minisign output: ` +
+                  `Signature for ${t.key} (${sigEntry[0]}) does not look like minisign output: ` +
                     sigBody.slice(0, 80),
                 );
               }
               platforms[t.key] = {
                 signature: sigBody,
+                // Build the URL from the tag rather than reusing the
+                // draft's `browser_download_url` (which contains
+                // `untagged-<sha>` and stops resolving once published).
                 url: `https://github.com/${repoSlug}/releases/download/${tag}/${installer.name}`,
               };
             }
 
             if (Object.keys(platforms).length === 0) {
-              core.setFailed("No platforms resolved — refusing to publish empty latest.json");
+              core.setFailed(
+                "No platforms resolved — refusing to publish empty latest.json",
+              );
               return;
             }
 
@@ -201,8 +212,9 @@ jobs:
               platforms,
             };
 
-            // Replace any existing latest.json, then upload the freshly built one.
-            const existing = assets.find((a) => a.name === "latest.json");
+            // Replace any existing latest.json (left over from a previous
+            // run on the same tag), then upload the fresh one.
+            const existing = release.assets.find((a) => a.name === "latest.json");
             if (existing) {
               await github.rest.repos.deleteReleaseAsset({
                 owner: context.repo.owner,
@@ -219,4 +231,6 @@ jobs:
               data: JSON.stringify(manifest, null, 2),
             });
 
-            core.info(`Published latest.json for ${tag} with ${Object.keys(platforms).join(", ")}`);
+            core.info(
+              `Published latest.json for ${tag} with ${Object.keys(platforms).join(", ")}`,
+            );
