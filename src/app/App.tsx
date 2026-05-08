@@ -401,11 +401,17 @@ export function App() {
 
   useEffect(() => {
     if (!open || !isDirty(open)) return;
+    // Pause autosave while there's an unresolved external-change conflict.
+    // Otherwise the autosave timer would silently overwrite the on-disk
+    // version we're trying to ask the user about — and by the time they
+    // open the diff, the on-disk version is the user's own bytes (so the
+    // diff would render empty).
+    if (externallyChanged) return;
     const id = window.setTimeout(() => {
       void handleSave();
     }, autosaveDelayMs);
     return () => window.clearTimeout(id);
-  }, [open, autosaveDelayMs, handleSave]);
+  }, [open, autosaveDelayMs, handleSave, externallyChanged]);
 
   // Watch the currently open file for external changes (git pull, edits in
   // another editor). The backend polls modtime; we only need to know which
