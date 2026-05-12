@@ -1244,16 +1244,30 @@
 .update-notes {
   margin: var(--space-3) 0 0;
   padding: var(--space-3) var(--space-4);
-  max-height: 240px;
+  max-height: 280px;
   overflow: auto;
   white-space: pre-wrap;
+  word-break: break-word;
   font: inherit;
   font-size: var(--font-size-ui-small);
   line-height: var(--line-height-ui);
-  color: var(--color-text-muted);
+  color: var(--color-text);
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2);
+}
+
+.update-notes-link {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.update-notes-link:hover {
+  text-decoration-thickness: 2px;
 }
 
 .update-progress {

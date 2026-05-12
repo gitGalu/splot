@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { t } from "../../i18n/i18n";
 import {
   checkForAppUpdate,
@@ -148,9 +149,7 @@ function UpdateBody({ status, onRecheck, onInstall }: BodyProps) {
               {t("update.publishedOn", { date: formatDate(status.date) })}
             </p>
           ) : null}
-          {status.notes ? (
-            <pre className="update-notes">{status.notes}</pre>
-          ) : null}
+          {status.notes ? <NotesBlock text={status.notes} /> : null}
           <div className="settings-actions">
             <button
               type="button"
@@ -206,6 +205,48 @@ function UpdateBody({ status, onRecheck, onInstall }: BodyProps) {
         </section>
       );
   }
+}
+
+/**
+ * Render release notes with bare http(s) URLs turned into real links
+ * opened by the OS browser via `@tauri-apps/plugin-opener`. We avoid
+ * `dangerouslySetInnerHTML` deliberately — the notes come from a
+ * release description and could carry anything; splitting on a known
+ * URL regex keeps everything else as plain text.
+ */
+function NotesBlock({ text }: { text: string }) {
+  const URL_RE = /\bhttps?:\/\/[^\s)<>"']+/g;
+  const out: Array<string | { url: string }> = [];
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    const start = m.index ?? 0;
+    if (start > last) out.push(text.slice(last, start));
+    out.push({ url: m[0] });
+    last = start + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+
+  return (
+    <pre className="update-notes">
+      {out.map((piece, i) =>
+        typeof piece === "string" ? (
+          <Fragment key={i}>{piece}</Fragment>
+        ) : (
+          <a
+            key={i}
+            href={piece.url}
+            className="update-notes-link"
+            onClick={(e) => {
+              e.preventDefault();
+              void openUrl(piece.url).catch(() => {});
+            }}
+          >
+            {piece.url}
+          </a>
+        ),
+      )}
+    </pre>
+  );
 }
 
 function progressPercent(

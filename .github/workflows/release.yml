@@ -100,6 +100,15 @@ jobs:
     needs: build
     runs-on: ubuntu-22.04
     steps:
+      # Checkout with full history so the manifest job can derive the
+      # commit-message changelog between the previous tag and this one.
+      # The auto-generated release body comes from PR titles, which is
+      # empty for repos that push directly to main — `git log` is what
+      # actually has signal here.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download updater signatures
         uses: actions/download-artifact@v4
         with:
@@ -110,10 +119,40 @@ jobs:
       - name: List signatures
         run: find sigs -type f
 
+      - name: Build commit-message changelog
+        id: changelog
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          prev=$(git tag --list 'v*' --sort=-version:refname \
+                  | grep -v "^${TAG}$" | head -n1)
+          if [ -z "$prev" ]; then
+            range="$TAG"
+          else
+            range="$prev..$TAG"
+          fi
+          # `%s` = subject only, one bullet per commit. Skip the version-
+          # bump commits we make by hand so the list stays interesting.
+          notes=$(git log "$range" \
+                    --pretty=format:'- %s' \
+                    --no-merges \
+                    --invert-grep --grep='^v[0-9].*: bump version' \
+                  || true)
+          {
+            echo 'NOTES<<EOF'
+            echo "$notes"
+            echo 'EOF'
+            if [ -n "$prev" ]; then
+              echo "PREV_TAG=$prev"
+            fi
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build & upload latest.json
         uses: actions/github-script@v7
         env:
           TAG: ${{ github.ref_name }}
+          COMMIT_NOTES: ${{ steps.changelog.outputs.NOTES }}
+          PREV_TAG: ${{ steps.changelog.outputs.PREV_TAG }}
         with:
           script: |
             const fs = require("fs");
@@ -243,9 +282,23 @@ jobs:
               return;
             }
 
+            // Compose human-readable notes for the in-app updater.
+            // Prefer the commit-message changelog gathered in the previous
+            // step, then append a "Pełna historia zmian" link. Strip the
+            // GitHub auto-changelog HTML comment if it leaked in.
+            const commitNotes = (process.env.COMMIT_NOTES || "").trim();
+            const prevTag = (process.env.PREV_TAG || "").trim();
+            const compareUrl = prevTag
+              ? `https://github.com/${repoSlug}/compare/${prevTag}...${tag}`
+              : `https://github.com/${repoSlug}/releases/tag/${tag}`;
+            const notesParts = [];
+            if (commitNotes) notesParts.push(commitNotes);
+            notesParts.push(`Pełna historia zmian: ${compareUrl}`);
+            const notes = notesParts.join("\n\n");
+
             const manifest = {
               version,
-              notes: release.body || "",
+              notes,
               pub_date: release.published_at || new Date().toISOString(),
               platforms,
             };
