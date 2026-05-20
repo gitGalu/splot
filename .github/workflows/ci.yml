@@ -23,10 +23,6 @@ jobs:
             args: "--target aarch64-apple-darwin"
             name: macos-arm64
             rust-target: aarch64-apple-darwin
-          - platform: macos-latest
-            args: "--target x86_64-apple-darwin"
-            name: macos-x64
-            rust-target: x86_64-apple-darwin
           - platform: windows-latest
             args: ""
             name: windows-x64

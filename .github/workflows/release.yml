@@ -1,9 +1,13 @@
 name: Release
 
-# Triggered by pushing a `v*` tag. Builds macOS (arm64 + x64) and Windows
-# x64 installers, signs them for the auto-updater, and creates a DRAFT
-# GitHub Release with all artifacts attached. You then review and publish
-# the draft from the GitHub UI.
+# Triggered by pushing a `v*` tag. Builds macOS (arm64) and Windows x64
+# installers, signs them for the auto-updater, and creates a DRAFT GitHub
+# Release with all artifacts attached. You then review and publish the
+# draft from the GitHub UI.
+#
+# macOS x86_64 (Intel) builds were dropped: cross-compiling on GitHub's
+# Apple Silicon runners broke and the Intel install base is small enough
+# that maintaining that toolchain isn't worth the recurring CI breakage.
 #
 # Linux .deb / .AppImage / Flatpak builds are intentionally NOT part of this
 # workflow. The Splot auto-updater is only wired up for macOS and Windows
@@ -32,10 +36,6 @@ jobs:
             args: "--target aarch64-apple-darwin"
             name: macos-arm64
             rust-target: aarch64-apple-darwin
-          - platform: macos-latest
-            args: "--target x86_64-apple-darwin"
-            name: macos-x64
-            rust-target: x86_64-apple-darwin
           - platform: windows-latest
             args: ""
             name: windows-x64
@@ -177,9 +177,9 @@ jobs:
             }
 
             // Walk the artifact tree and collect every .sig with its full
-            // path. macOS bundles are named just `Splot.app.tar.gz.sig` for
-            // both architectures — only the `aarch64-apple-darwin` /
-            // `x86_64-apple-darwin` parent directory disambiguates them.
+            // path. macOS bundles are named just `Splot.app.tar.gz.sig`,
+            // so we rely on the `aarch64-apple-darwin` parent directory
+            // (only arm64 is built now).
             const sigs = [];
             const walk = (dir) => {
               for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -194,22 +194,17 @@ jobs:
             // Map each updater target to:
             //  - `installerRe`: matches the asset *name* on the release
             //    (these names ARE arch-tagged: `Splot_aarch64.app.tar.gz`,
-            //    `Splot_x64.app.tar.gz`, `Splot_<v>_x64-setup.exe`, …).
+            //    `Splot_<v>_x64-setup.exe`, …).
             //  - `sigPathRe`: matches the *full path* of the .sig on disk.
-            //    macOS .sig basenames are not arch-tagged (`Splot.app.tar.gz.sig`)
-            //    — disambiguate via the `aarch64-apple-darwin` /
-            //    `x86_64-apple-darwin` parent directory that
+            //    macOS .sig basenames are not arch-tagged
+            //    (`Splot.app.tar.gz.sig`) — disambiguate via the
+            //    `aarch64-apple-darwin` parent directory that
             //    upload-artifact preserved.
             const targets = [
               {
                 key: "darwin-aarch64",
                 installerRe: /aarch64.*\.app\.tar\.gz$/i,
                 sigPathRe: /aarch64-apple-darwin\b.*\.app\.tar\.gz\.sig$/i,
-              },
-              {
-                key: "darwin-x86_64",
-                installerRe: /(?:x64|x86_64).*\.app\.tar\.gz$/i,
-                sigPathRe: /x86_64-apple-darwin\b.*\.app\.tar\.gz\.sig$/i,
               },
               {
                 key: "windows-x86_64",

@@ -1,8 +1,12 @@
 # Releasing Splot
 
-Splot ships signed builds for **macOS (arm64 + x64)** and **Windows x64** with
+Splot ships signed builds for **macOS (arm64)** and **Windows x64** with
 an in-app auto-updater. Releases are produced by `.github/workflows/release.yml`,
 which is triggered by pushing a tag matching `v*`.
+
+> **macOS Intel note.** x86_64 macOS builds were dropped — cross-compiling
+> on the Apple Silicon runners kept breaking the release. arm64 is the only
+> macOS target now.
 
 > **Linux note.** Linux/Flatpak distribution is intentionally **not part of
 > this pipeline**. The auto-updater is wired up only for macOS and Windows
@@ -70,7 +74,6 @@ Back it up to a password manager or hardware key. Do **not** commit it.
    ```
 4. The release workflow runs and creates a **draft** GitHub Release with:
    - macOS arm64 `.dmg` + `.app.tar.gz` + `.app.tar.gz.sig`
-   - macOS x64 `.dmg` + `.app.tar.gz` + `.app.tar.gz.sig`
    - Windows x64 `.msi` (or `setup.exe`) + `.sig`
    - **`latest.json`** — built by the `publish-updater-manifest` job once
      all platform builds finish. This is what the auto-updater reads.
@@ -93,7 +96,7 @@ It must:
 
 - exist (HTTP 200, JSON content),
 - have a `version` matching the tag (without the leading `v`),
-- have a `signature` and `url` for each of `darwin-aarch64`, `darwin-x86_64`,
+- have a `signature` and `url` for each of `darwin-aarch64` and
   `windows-x86_64`.
 
 Each `signature` must match the corresponding `.sig` asset content.
