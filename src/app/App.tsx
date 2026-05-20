@@ -57,6 +57,10 @@ export function App() {
   const [saving, setSaving] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickOpenInitial, setQuickOpenInitial] = useState("");
+  // 1-based line to jump to after the next file open settles in the editor.
+  // Used when picking a content-search hit, so we land on the matching line
+  // instead of the top of the file.
+  const pendingJumpLineRef = useRef<number | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -205,14 +209,43 @@ export function App() {
     [tree],
   );
 
+  const jumpEditorToLine = useCallback((line: number) => {
+    let attempts = 0;
+    const tryJump = () => {
+      const view = editorViewRef.current;
+      if (!view) {
+        if (attempts++ < 10) requestAnimationFrame(tryJump);
+        return;
+      }
+      const doc = view.state.doc;
+      const lineNo = Math.max(1, Math.min(line, doc.lines));
+      const pos = doc.line(lineNo).from;
+      view.dispatch({
+        selection: EditorSelection.cursor(pos),
+        effects: EditorView.scrollIntoView(pos, { y: "center" }),
+      });
+      view.focus();
+    };
+    requestAnimationFrame(tryJump);
+  }, []);
+
   const handleOpen = useCallback(
-    async (path: string) => {
+    async (path: string, jumpToLine?: number) => {
       if (!fileIndex) return;
       const ref = fileIndex.findByPath(path);
       if (!ref) return;
+      // If the file is already open, skip the reload and just jump — avoids
+      // clobbering unsaved edits and feels instant for the user.
+      if (openRef.current?.ref.path === path) {
+        if (jumpToLine != null) jumpEditorToLine(jumpToLine);
+        return;
+      }
       await flushPending();
       try {
         const content = await provider.readFile(path);
+        // Stash the jump target *before* setOpen so the editor effect can pick
+        // it up on the same render that mounts/updates the doc.
+        pendingJumpLineRef.current = jumpToLine ?? null;
         setOpen({ ref, original: content.text, current: content.text });
         if (tree) setLastFile(tree.workspace.root, path);
         setError(null);
@@ -220,8 +253,18 @@ export function App() {
         setError(formatError(e));
       }
     },
-    [fileIndex, provider, flushPending, tree],
+    [fileIndex, provider, flushPending, tree, jumpEditorToLine],
   );
+
+  // After a file opens with a requested jump line, move the cursor there.
+  // The editor remounts on path change (EditorPane keys on file.path), so we
+  // retry across animation frames until the view is mounted.
+  useEffect(() => {
+    const target = pendingJumpLineRef.current;
+    if (target == null || !open) return;
+    pendingJumpLineRef.current = null;
+    jumpEditorToLine(target);
+  }, [open?.ref.path, jumpEditorToLine]);
 
   // Restore the last-open file when a workspace first becomes available, or
   // when we switch to a different workspace. We only touch the empty-file
@@ -846,6 +889,10 @@ export function App() {
                   onOpen={handleOpen}
                   onTrash={handleTrash}
                   onMove={handleMove}
+                  onScopeSearch={(dirPath) => {
+                    setQuickOpenInitial(dirPath ? `/${dirPath} ` : "");
+                    setQuickOpen(true);
+                  }}
                 />
               ) : (
                 <div className="muted small padded">{t("app.loadingWorkspace")}</div>
@@ -971,9 +1018,9 @@ export function App() {
         <QuickOpen
           index={fileIndex}
           searchContent={(q) => provider.searchContent(q)}
-          onSelect={(path) => {
+          onSelect={(path, line) => {
             setQuickOpen(false);
-            handleOpen(path);
+            handleOpen(path, line);
           }}
           onCreate={handleCreate}
           openDoc={open?.current}

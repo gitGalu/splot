@@ -12,7 +12,7 @@ import { t } from "../../i18n/i18n";
 
 interface Props {
   index: FileIndex;
-  onSelect: (path: string) => void;
+  onSelect: (path: string, line?: number) => void;
   onClose: () => void;
   searchContent: (query: string) => Promise<ContentHit[]>;
   onCreate: (path: string) => Promise<void>;
@@ -29,18 +29,62 @@ const CONTENT_MIN_CHARS = 2;
 
 type Mode = "files" | "content" | "new" | "symbol";
 
-function parseQuery(raw: string): { mode: Mode; query: string } {
+interface ParsedQuery {
+  mode: Mode;
+  query: string;
+  /**
+   * Folder to restrict the search to, or `null` for the whole workspace.
+   * Only meaningful in `files` and `content` modes; ignored elsewhere.
+   * An empty string ("") means "workspace root only".
+   */
+  scope: string | null;
+}
+
+function parseQuery(raw: string): ParsedQuery {
   if (raw.startsWith(">")) {
-    return { mode: "content", query: raw.slice(1) };
+    const { scope, rest } = extractScope(raw.slice(1));
+    return { mode: "content", query: rest, scope };
   }
   if (raw.startsWith("@")) {
-    return { mode: "symbol", query: raw.slice(1) };
+    return { mode: "symbol", query: raw.slice(1), scope: null };
   }
   if (raw.startsWith("+")) {
     const rest = raw.slice(1);
-    return { mode: "new", query: rest.startsWith(" ") ? rest.slice(1) : rest };
+    return {
+      mode: "new",
+      query: rest.startsWith(" ") ? rest.slice(1) : rest,
+      scope: null,
+    };
   }
-  return { mode: "files", query: raw };
+  const { scope, rest } = extractScope(raw);
+  return { mode: "files", query: rest, scope };
+}
+
+/**
+ * Pull a leading `/folder ` scope off the input. Returns `scope: null` when
+ * the input doesn't start with `/`. The first space ends the scope; a trailing
+ * `/` inside the scope is allowed (and stripped) so users can type either
+ * `/docs ` or `/docs/ ` interchangeably.
+ *
+ * While the user is still typing the folder name (no space yet), no scope is
+ * applied — otherwise every keystroke would re-filter against a partial path.
+ *
+ * Examples:
+ *   "/docs readme"  → scope "docs",  rest "readme"
+ *   "/docs/ readme" → scope "docs",  rest "readme"
+ *   "/a/b/ x"       → scope "a/b",   rest "x"
+ *   "/docs "        → scope "docs",  rest ""
+ *   "/docs"         → scope null,    rest "/docs" (no space yet — still typing)
+ */
+function extractScope(input: string): { scope: string | null; rest: string } {
+  if (!input.startsWith("/")) return { scope: null, rest: input };
+  const space = input.indexOf(" ");
+  if (space === -1) return { scope: null, rest: input };
+  // Strip leading "/" and any optional trailing "/" before the space.
+  const raw = input.slice(1, space);
+  const scope = raw.endsWith("/") ? raw.slice(0, -1) : raw;
+  const rest = input.slice(space + 1);
+  return { scope, rest };
 }
 
 export function QuickOpen({
@@ -61,11 +105,11 @@ export function QuickOpen({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
-  const { mode, query } = useMemo(() => parseQuery(input), [input]);
+  const { mode, query, scope } = useMemo(() => parseQuery(input), [input]);
 
   const fileResults = useMemo<FileSearchResult[]>(
-    () => (mode === "files" ? index.search(query, MAX_RESULTS) : []),
-    [index, mode, query],
+    () => (mode === "files" ? index.search(query, MAX_RESULTS, { scope }) : []),
+    [index, mode, query, scope],
   );
 
   // Headings are parsed once per open-doc snapshot; cheap on real-world files.
@@ -103,11 +147,12 @@ export function QuickOpen({
 
     let cancelled = false;
     setContentLoading(true);
+    const scopeFilter = makeScopeFilter(scope);
     const handle = window.setTimeout(() => {
       searchContent(trimmed)
         .then((hits) => {
           if (cancelled) return;
-          setContentHits(hits);
+          setContentHits(hits.filter((h) => scopeFilter(h.path)));
           setContentError(null);
         })
         .catch((e: unknown) => {
@@ -124,7 +169,7 @@ export function QuickOpen({
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [mode, query, searchContent]);
+  }, [mode, query, scope, searchContent]);
 
   useEffect(() => {
     setCreateError(null);
@@ -169,7 +214,7 @@ export function QuickOpen({
       }
       if (mode === "content") {
         const h = contentHits[idx];
-        if (h) onSelect(h.path);
+        if (h) onSelect(h.path, h.line);
         return;
       }
       if (mode === "symbol") {
@@ -238,6 +283,19 @@ export function QuickOpen({
           e.preventDefault();
           onClose();
           break;
+        case "Tab":
+          // Toggle between file-name search and content search while keeping
+          // the scope prefix and query intact. Only meaningful in those two
+          // modes — symbol/new have their own prefixes and Tab should fall
+          // through to the browser's default focus behavior elsewhere.
+          if (mode === "files") {
+            e.preventDefault();
+            setInput((v) => `>${v}`);
+          } else if (mode === "content") {
+            e.preventDefault();
+            setInput((v) => (v.startsWith(">") ? v.slice(1) : v));
+          }
+          break;
       }
     },
     [active, commit, mode, onClose, resultCount],
@@ -264,6 +322,11 @@ export function QuickOpen({
                   ? t("qo.mode.symbol")
                   : t("qo.mode.files")}
           </span>
+          {scope != null && scope !== "" && (mode === "files" || mode === "content") ? (
+            <span className="qo-scope" title={scope}>
+              {`/${scope}`}
+            </span>
+          ) : null}
           <input
             ref={inputRef}
             className="qo-input"
@@ -300,34 +363,7 @@ export function QuickOpen({
           setActive,
           commit,
         })}
-        <div className="qo-hint">
-          {mode === "content" ? (
-            <>{contentHintWithKbd()}</>
-          ) : mode === "symbol" ? (
-            <>{symbolHintWithKbd()}</>
-          ) : mode === "new" ? (
-            <>
-              <kbd>Enter</kbd>
-              {t("qo.hint.new1")}
-              <kbd>/</kbd>
-              {t("qo.hint.new2")}
-              <kbd>/</kbd>
-              {t("qo.hint.new3")}
-              <code>.md</code>
-              {t("qo.hint.new4")}
-            </>
-          ) : (
-            <>
-              <kbd>&gt;</kbd>
-              {t("qo.hint.files1")}
-              <kbd>+</kbd>
-              {t("qo.hint.files2")}
-              {t("qo.hint.files3")}
-              <kbd>@</kbd>
-              {t("qo.hint.files4")}
-            </>
-          )}
-        </div>
+        <div className="qo-hint">{renderHint(mode)}</div>
       </div>
     </div>
   );
@@ -546,14 +582,65 @@ function previewPath(raw: string): { display: string; isDir: boolean } {
   return { display: segments.join("/") + (isDir ? "/" : ""), isDir };
 }
 
-function contentHintWithKbd(): ReactElement[] {
-  const parts = t("qo.hint.content", { prefix: "\u0000" }).split("\u0000");
-  const out: ReactElement[] = [];
-  parts.forEach((p, i) => {
-    out.push(<span key={`t${i}`}>{p}</span>);
-    if (i < parts.length - 1) out.push(<kbd key={`k${i}`}>&gt;</kbd>);
-  });
-  return out;
+function renderHint(mode: Mode): ReactElement {
+  // Compact one-liner: each item is "<kbd>key</kbd> label", separated by · .
+  // Heavy-handed sentences ("Przełącz na szukanie w treści") were eating two
+  // lines of space for hints the user can guess from the kbd → tag mapping.
+  if (mode === "new") {
+    // "new" keeps its prose hint — the rules ("/" for folders, ".md" default)
+    // aren't representable as flat tags without losing meaning.
+    return (
+      <>
+        <kbd>Enter</kbd>
+        {t("qo.hint.new1")}
+        <kbd>/</kbd>
+        {t("qo.hint.new2")}
+        <kbd>/</kbd>
+        {t("qo.hint.new3")}
+        <code>.md</code>
+        {t("qo.hint.new4")}
+      </>
+    );
+  }
+  if (mode === "symbol") return <>{symbolHintWithKbd()}</>;
+
+  const items: ReactElement[] =
+    mode === "content"
+      ? [
+          <>
+            <kbd>Tab</kbd> {t("qo.tag.toFiles")}
+          </>,
+          <>
+            <code>/folder</code> {t("qo.tag.scope")}
+          </>,
+        ]
+      : [
+          <>
+            <kbd>&gt;</kbd> {t("qo.tag.content")}
+          </>,
+          <>
+            <kbd>@</kbd> {t("qo.tag.headings")}
+          </>,
+          <>
+            <kbd>+</kbd> {t("qo.tag.new")}
+          </>,
+          <>
+            <code>/folder</code> {t("qo.tag.scope")}
+          </>,
+          <>
+            <kbd>Tab</kbd> {t("qo.tag.toContent")}
+          </>,
+        ];
+  return (
+    <>
+      {items.map((el, i) => (
+        <span key={i} className="qo-hint-item">
+          {i > 0 ? <span className="qo-hint-sep"> · </span> : null}
+          {el}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function symbolHintWithKbd(): ReactElement[] {
@@ -564,6 +651,17 @@ function symbolHintWithKbd(): ReactElement[] {
     if (i < parts.length - 1) out.push(<kbd key={`k${i}`}>@</kbd>);
   });
   return out;
+}
+
+/**
+ * Client-side mirror of FileIndex's scope rule, applied to content hits since
+ * the workspace provider doesn't accept a scope parameter.
+ */
+function makeScopeFilter(scope: string | null): (path: string) => boolean {
+  if (scope == null) return () => true;
+  if (scope === "") return (p) => !p.includes("/");
+  const prefix = `${scope}/`;
+  return (p) => p.startsWith(prefix);
 }
 
 function parentPath(path: string): string {

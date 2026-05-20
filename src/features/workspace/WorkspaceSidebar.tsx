@@ -9,6 +9,8 @@ interface Props {
   onOpen: (path: string) => void;
   onTrash: (path: string, name: string) => void;
   onMove: (from: string, toDir: string) => void;
+  /** Open Quick Open scoped to the given folder path. */
+  onScopeSearch: (dirPath: string) => void;
 }
 
 const TRASH_DIR = ".trash";
@@ -44,6 +46,7 @@ export function WorkspaceSidebar({
   onOpen,
   onTrash,
   onMove,
+  onScopeSearch,
 }: Props) {
   const [dragOver, setDragOver] = useState<string | null>(null);
   // Synchronous source-of-truth for the currently dragged path.
@@ -98,6 +101,7 @@ export function WorkspaceSidebar({
             onOpen={onOpen}
             onTrash={onTrash}
             onMove={onMove}
+            onScopeSearch={onScopeSearch}
             dragOver={dragOver}
             setDragOver={setDragOver}
             draggingRef={draggingRef}
@@ -115,6 +119,7 @@ interface NodeProps {
   onOpen: (path: string) => void;
   onTrash: (path: string, name: string) => void;
   onMove: (from: string, toDir: string) => void;
+  onScopeSearch: (dirPath: string) => void;
   dragOver: string | null;
   setDragOver: (v: string | null) => void;
   draggingRef: React.MutableRefObject<string | null>;
@@ -127,6 +132,7 @@ function TreeNode({
   onOpen,
   onTrash,
   onMove,
+  onScopeSearch,
   dragOver,
   setDragOver,
   draggingRef,
@@ -188,7 +194,21 @@ function TreeNode({
             onDragEnd={handleDragEnd}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
-            onClick={() => setExpanded((v) => !v)}
+            onClick={(e) => {
+              // Cmd/Ctrl-click on a folder opens Quick Open scoped here
+              // instead of toggling expansion. Trash itself isn't scope-able.
+              if ((e.metaKey || e.ctrlKey) && !isTrashRoot) {
+                e.preventDefault();
+                onScopeSearch(node.path);
+                return;
+              }
+              setExpanded((v) => !v);
+            }}
+            title={
+              isTrashRoot
+                ? undefined
+                : t("tree.scopeSearch.tip", { name: node.name })
+            }
           >
             <span className={`chevron ${expanded ? "chevron--open" : ""}`} aria-hidden>
               ›
@@ -221,6 +241,7 @@ function TreeNode({
                 onOpen={onOpen}
                 onTrash={onTrash}
                 onMove={onMove}
+                onScopeSearch={onScopeSearch}
                 dragOver={dragOver}
                 setDragOver={setDragOver}
                 draggingRef={draggingRef}

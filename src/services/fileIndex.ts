@@ -14,16 +14,48 @@ export interface FileSearchResult {
   pathPositions: number[];
 }
 
+export interface FileSearchOptions {
+  /**
+   * If set, only files whose path is inside this directory are considered.
+   * Pass the directory's relative path (no leading slash, no trailing slash).
+   * An empty string means "workspace root only" — files directly at the root,
+   * with no subdirectory in their path.
+   */
+  scope?: string | null;
+}
+
 export interface FileIndex {
   all(): FileRef[];
   findByPath(path: string): FileRef | undefined;
   /** Fuzzy, ranked search over file name + relative path. */
-  search(query: string, limit?: number): FileSearchResult[];
+  search(query: string, limit?: number, options?: FileSearchOptions): FileSearchResult[];
 }
 
 const DEFAULT_LIMIT = 50;
 
 const TRASH_DIR_NAME = ".trash";
+
+/**
+ * Build a predicate that decides whether a file lies within `scope`.
+ *
+ * Conventions for `scope`:
+ *   - `null`/`undefined` — no scope filter, every file passes.
+ *   - `""` (empty string) — root only: files directly at the workspace root
+ *     (their path contains no `/`).
+ *   - `"docs"` or `"a/b"` — files inside that directory at any depth.
+ *
+ * The scope is normalised: leading/trailing slashes are stripped so callers
+ * can pass `/docs/` or `docs` interchangeably.
+ */
+function makeScopePredicate(scope: string | null | undefined): (f: FileRef) => boolean {
+  if (scope == null) return () => true;
+  const trimmed = scope.replace(/^\/+/, "").replace(/\/+$/, "");
+  if (trimmed === "") {
+    return (f) => !f.path.includes("/");
+  }
+  const prefix = `${trimmed}/`;
+  return (f) => f.path.startsWith(prefix);
+}
 
 export function buildFileIndex(roots: WorkspaceNode[]): FileIndex {
   const files: FileRef[] = [];
@@ -53,11 +85,12 @@ export function buildFileIndex(roots: WorkspaceNode[]): FileIndex {
   return {
     all: () => files.slice(),
     findByPath: (path) => byPath.get(path),
-    search: (query, limit = DEFAULT_LIMIT) => {
+    search: (query, limit = DEFAULT_LIMIT, options) => {
       const q = query.trim();
+      const inScope = makeScopePredicate(options?.scope);
       if (!q) {
         return files
-          .slice()
+          .filter(inScope)
           .sort((a, b) => a.path.localeCompare(b.path))
           .slice(0, limit)
           .map((file) => ({
@@ -70,6 +103,7 @@ export function buildFileIndex(roots: WorkspaceNode[]): FileIndex {
 
       const results: FileSearchResult[] = [];
       for (const file of files) {
+        if (!inScope(file)) continue;
         const nameMatch = fuzzyMatch(q, file.name);
         const pathMatch = fuzzyMatch(q, file.path);
 

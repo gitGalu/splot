@@ -80,15 +80,12 @@ const pl: Dict = {
   "qo.placeholder.files": "Znajdź plik…",
   "qo.empty.typeToSearch": "Zacznij pisać",
   "qo.empty.noMatches": "Brak wyników",
-  "qo.hint.files1": " wyszukuje w zawartości · ",
-  "qo.hint.files2": " tworzy nowy plik.",
 
   // Quick open — content
   "qo.mode.content": "Zawartość",
   "qo.placeholder.content": "Szukaj w zawartości plików…",
   "qo.empty.minChars": "Wpisz co najmniej {n} znaki",
   "qo.empty.searching": "Szukam…",
-  "qo.hint.content": "Szukanie w zawartości. Usuń {prefix}, żeby szukać po nazwie.",
 
   // Quick open — new
   "qo.mode.new": "Nowy",
@@ -108,8 +105,14 @@ const pl: Dict = {
   "qo.empty.noHeadings": "Plik nie ma nagłówków.",
   "qo.empty.noFile": "Otwórz plik, aby przeglądać nagłówki.",
   "qo.hint.symbol": "Skok do nagłówka w bieżącym pliku. Usuń {prefix}, żeby szukać po nazwie.",
-  "qo.hint.files3": " · ",
-  "qo.hint.files4": " skok do nagłówka.",
+  // Compact one-liner tags shown in the hint bar.
+  "qo.tag.content": "treść",
+  "qo.tag.headings": "nagłówki",
+  "qo.tag.new": "nowy",
+  "qo.tag.scope": "zakres",
+  "qo.tag.toContent": "w treści",
+  "qo.tag.toFiles": "po nazwach",
+  "tree.scopeSearch.tip": "{name} — ⌘/Ctrl-klik, by szukać w folderze",
 
   // Command palette
   "cmd.mode": "Komenda",
