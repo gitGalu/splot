@@ -20,7 +20,25 @@ const MENU_ID_REPO: &str = "splot.help.repo";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // Single-instance must be the FIRST plugin registered (Tauri docs are
+    // explicit on this — registering it after others can race the callback).
+    // When a second launch tries to spawn, the running process raises and
+    // focuses its window instead of producing a parallel app with its own
+    // localStorage that would fight the original over autosave.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }));
+    }
+
+    let builder = builder
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init());
