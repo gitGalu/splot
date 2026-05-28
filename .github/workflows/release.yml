@@ -124,20 +124,79 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          prev=$(git tag --list 'v*' --sort=-version:refname \
-                  | grep -v "^${TAG}$" | head -n1)
-          if [ -z "$prev" ]; then
-            range="$TAG"
+          # Build a rolling changelog covering the last few releases, not
+          # just `prev..TAG`. A user on an older version still sees every
+          # release they're jumping over instead of a single header.
+          #
+          # WINDOW = how many tags (including TAG itself) to include in
+          # the modal. 5 is enough to span ~1–2 months of development at
+          # current cadence; bigger windows just produce wall-of-text.
+          WINDOW=5
+
+          # All v* tags from newest to oldest, with TAG forced to the top
+          # in case version-sort disagrees (annotated vs lightweight tags
+          # have surprised us before). Using `read` instead of `mapfile`
+          # keeps this portable to older bashes (e.g. macOS dev shell).
+          all_tags=()
+          while IFS= read -r line; do
+            all_tags+=("$line")
+          done < <(
+            git tag --list 'v*' --sort=-version:refname \
+              | grep -v "^${TAG}$"
+          )
+          tags=("$TAG")
+          for ((i = 0; i < WINDOW - 1 && i < ${#all_tags[@]}; i++)); do
+            tags+=("${all_tags[$i]}")
+          done
+
+          # PREV_TAG is the release immediately before TAG — used for the
+          # "Pełna historia zmian" compare link at the bottom.
+          if [ "${#all_tags[@]}" -gt 0 ]; then
+            prev="${all_tags[0]}"
           else
-            range="$prev..$TAG"
+            prev=""
           fi
-          # `%s` = subject only, one bullet per commit. Skip the version-
-          # bump commits we make by hand so the list stays interesting.
-          notes=$(git log "$range" \
-                    --pretty=format:'- %s' \
-                    --no-merges \
-                    --invert-grep --grep='^v[0-9].*: bump version' \
-                  || true)
+
+          # For each tag in the window, emit a header + bullets of the
+          # commits introduced since the previous tag. The "previous tag"
+          # for the OLDEST tag in the window is the real previous tag in
+          # the repo (if any) — never an open-ended range, otherwise the
+          # final section would spill the entire repo history.
+          # Skip bump commits and empty sections so the modal stays tidy.
+          notes=""
+          for i in "${!tags[@]}"; do
+            t="${tags[$i]}"
+            p_idx=$((i + 1))
+            if [ "$p_idx" -lt "${#tags[@]}" ]; then
+              prev_t="${tags[$p_idx]}"
+            else
+              # Look one tag past the window in the full list.
+              full_idx=$((WINDOW - 1))
+              if [ "$full_idx" -lt "${#all_tags[@]}" ]; then
+                prev_t="${all_tags[$full_idx]}"
+              else
+                prev_t=""
+              fi
+            fi
+            if [ -n "$prev_t" ]; then
+              range="${prev_t}..$t"
+            else
+              range="$t"
+            fi
+            section=$(git log "$range" \
+                        --pretty=format:'- %s' \
+                        --no-merges \
+                        --invert-grep --grep='^v[0-9].*: bump version' \
+                      || true)
+            if [ -z "$section" ]; then
+              continue
+            fi
+            if [ -n "$notes" ]; then
+              notes="${notes}"$'\n\n'
+            fi
+            notes="${notes}## ${t}"$'\n'"${section}"
+          done
+
           {
             echo 'NOTES<<EOF'
             echo "$notes"

@@ -1,4 +1,11 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { t } from "../../i18n/i18n";
 import {
@@ -209,44 +216,64 @@ function UpdateBody({ status, onRecheck, onInstall }: BodyProps) {
 
 /**
  * Render release notes with bare http(s) URLs turned into real links
- * opened by the OS browser via `@tauri-apps/plugin-opener`. We avoid
+ * opened by the OS browser via `@tauri-apps/plugin-opener`, and lines
+ * that begin with `## ` rendered as version headers. We avoid
  * `dangerouslySetInnerHTML` deliberately — the notes come from a
- * release description and could carry anything; splitting on a known
- * URL regex keeps everything else as plain text.
+ * release description and could carry anything; everything that isn't
+ * a matched URL stays plain text.
  */
 function NotesBlock({ text }: { text: string }) {
-  const URL_RE = /\bhttps?:\/\/[^\s)<>"']+/g;
-  const out: Array<string | { url: string }> = [];
-  let last = 0;
-  for (const m of text.matchAll(URL_RE)) {
-    const start = m.index ?? 0;
-    if (start > last) out.push(text.slice(last, start));
-    out.push({ url: m[0] });
-    last = start + m[0].length;
-  }
-  if (last < text.length) out.push(text.slice(last));
-
+  // Split into per-line nodes first so version headers (`## v0.2.26`)
+  // can render as distinct elements. URLs are linkified inside each
+  // non-header line.
+  const lines = text.split("\n");
   return (
     <pre className="update-notes">
-      {out.map((piece, i) =>
-        typeof piece === "string" ? (
-          <Fragment key={i}>{piece}</Fragment>
-        ) : (
-          <a
-            key={i}
-            href={piece.url}
-            className="update-notes-link"
-            onClick={(e) => {
-              e.preventDefault();
-              void openUrl(piece.url).catch(() => {});
-            }}
-          >
-            {piece.url}
-          </a>
-        ),
-      )}
+      {lines.map((line, i) => {
+        const headerMatch = line.match(/^##\s+(.+)$/);
+        if (headerMatch) {
+          return (
+            <span key={i} className="update-notes-header">
+              {headerMatch[1]}
+              {i < lines.length - 1 ? "\n" : ""}
+            </span>
+          );
+        }
+        return (
+          <Fragment key={i}>
+            {linkifyLine(line)}
+            {i < lines.length - 1 ? "\n" : ""}
+          </Fragment>
+        );
+      })}
     </pre>
   );
+}
+
+function linkifyLine(line: string): ReactNode[] {
+  const URL_RE = /\bhttps?:\/\/[^\s)<>"']+/g;
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of line.matchAll(URL_RE)) {
+    const start = m.index ?? 0;
+    if (start > last) out.push(line.slice(last, start));
+    out.push(
+      <a
+        key={`u${start}`}
+        href={m[0]}
+        className="update-notes-link"
+        onClick={(e) => {
+          e.preventDefault();
+          void openUrl(m[0]).catch(() => {});
+        }}
+      >
+        {m[0]}
+      </a>,
+    );
+    last = start + m[0].length;
+  }
+  if (last < line.length) out.push(line.slice(last));
+  return out;
 }
 
 function progressPercent(
