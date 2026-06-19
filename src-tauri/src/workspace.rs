@@ -78,6 +78,16 @@ struct WatcherHandle {
     stop: Arc<AtomicBool>,
 }
 
+/// Handle for the workspace-wide directory watcher. Unlike the per-file
+/// watcher above, this polls the whole active workspace tree and fires a
+/// `workspace:changed` event whenever the set of files (or their mtimes)
+/// changes — covering new/removed/renamed files from any source: edits in
+/// another app, a `git pull`, or Splot's own Quick Capture window writing a
+/// new `Inbox.md`. The frontend reacts by reloading the tree.
+struct DirWatcherHandle {
+    stop: Arc<AtomicBool>,
+}
+
 pub struct WorkspaceState {
     root: RwLock<Option<PathBuf>>,
     registry: RwLock<Registry>,
@@ -85,6 +95,9 @@ pub struct WorkspaceState {
     /// Currently watched file. At most one at a time — replaced when the user
     /// switches files. `None` while the editor is idle.
     watcher: RwLock<Option<WatcherHandle>>,
+    /// Workspace-wide directory watcher. Replaced when the active workspace
+    /// changes; stopped when the app exits.
+    dir_watcher: RwLock<Option<DirWatcherHandle>>,
 }
 
 impl WorkspaceState {
@@ -149,6 +162,7 @@ impl WorkspaceState {
             registry: RwLock::new(registry),
             registry_path,
             watcher: RwLock::new(None),
+            dir_watcher: RwLock::new(None),
         })
     }
 
@@ -181,6 +195,101 @@ impl WorkspaceState {
         save_registry(&self.registry_path, &registry)?;
         Ok(())
     }
+
+    /// (Re)start the workspace-wide directory watcher against the current root.
+    /// Stops any previous watcher first. Emits `workspace:changed` whenever the
+    /// tree signature (paths + mtimes of all entries) changes between ticks.
+    /// Called on launch and whenever the active workspace switches.
+    pub fn restart_dir_watcher(&self, app: &AppHandle) {
+        // Stop the previous watcher.
+        if let Ok(mut guard) = self.dir_watcher.write() {
+            if let Some(prev) = guard.take() {
+                prev.stop.store(true, Ordering::Relaxed);
+            }
+        }
+
+        let Ok(root) = self.root() else { return };
+        let stop = Arc::new(AtomicBool::new(false));
+
+        {
+            let stop = stop.clone();
+            let app = app.clone();
+            thread::spawn(move || {
+                // 1s cadence: snappy enough that a new Inbox.md or a git pull
+                // shows up almost immediately, cheap enough that walking a
+                // notes-sized tree each tick is invisible.
+                let interval = Duration::from_millis(1000);
+                let mut last = dir_signature(&root);
+                while !stop.load(Ordering::Relaxed) {
+                    thread::sleep(interval);
+                    if stop.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let current = dir_signature(&root);
+                    if current != last {
+                        last = current;
+                        let _ = app.emit("workspace:changed", ());
+                    }
+                }
+            });
+        }
+
+        if let Ok(mut guard) = self.dir_watcher.write() {
+            *guard = Some(DirWatcherHandle { stop });
+        }
+    }
+}
+
+/// A cheap signature of the workspace tree: a hash over every non-hidden
+/// entry's relative path and mtime. Two trees with the same files at the same
+/// mtimes hash equal; any add/remove/rename/content-write changes it. Hidden
+/// entries (incl. `.trash`) are skipped so trashing or internal churn doesn't
+/// spuriously fire. Errors (unreadable dirs) fold into the hash as zero so a
+/// transient read failure doesn't crash the watcher.
+fn dir_signature(root: &Path) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    let mut stack = vec![root.to_path_buf()];
+    // Sort-independent: XOR each entry's per-entry hash into an accumulator so
+    // directory read order doesn't matter.
+    let mut acc: u64 = 0;
+    let mut count: u64 = 0;
+
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else { continue };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if is_hidden(&name) {
+                continue;
+            }
+            let path = entry.path();
+            let Ok(ft) = entry.file_type() else { continue };
+            if ft.is_dir() {
+                stack.push(path.clone());
+            }
+            let rel = relative_string(root, &path);
+            let mtime = entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+
+            let mut h = DefaultHasher::new();
+            rel.hash(&mut h);
+            mtime.hash(&mut h);
+            ft.is_dir().hash(&mut h);
+            acc ^= h.finish();
+            count = count.wrapping_add(1);
+        }
+    }
+
+    count.hash(&mut hasher);
+    acc.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn load_registry(path: &Path) -> Option<Registry> {
@@ -1201,6 +1310,7 @@ pub fn cmd_add_workspace(
 
 #[tauri::command]
 pub fn cmd_switch_workspace(
+    app: AppHandle,
     state: State<'_, WorkspaceState>,
     path: String,
 ) -> Result<WorkspaceInfo, WorkspaceError> {
@@ -1237,6 +1347,10 @@ pub fn cmd_switch_workspace(
     }
     state.persist_registry()?;
 
+    // Point the directory watcher at the new workspace so external/Quick
+    // Capture changes there fire `workspace:changed`.
+    state.restart_dir_watcher(&app);
+
     Ok(WorkspaceInfo {
         name,
         root: normalized,
@@ -1245,6 +1359,7 @@ pub fn cmd_switch_workspace(
 
 #[tauri::command]
 pub fn cmd_remove_workspace(
+    app: AppHandle,
     state: State<'_, WorkspaceState>,
     path: String,
 ) -> Result<Registry, WorkspaceError> {
@@ -1282,12 +1397,113 @@ pub fn cmd_remove_workspace(
     }
 
     state.persist_registry()?;
+    // Active workspace may have changed; re-point the directory watcher.
+    state.restart_dir_watcher(&app);
     cmd_list_workspaces(state)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Create a unique empty temp directory for a test, returning its path.
+    /// Cleaned up by the OS; tests also remove it at the end on the happy path.
+    fn temp_dir(tag: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("splot-test-{tag}-{nanos}"));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn signature_stable_for_unchanged_tree() {
+        let root = temp_dir("sig-stable");
+        fs::write(root.join("a.md"), "hello").unwrap();
+        fs::create_dir(root.join("sub")).unwrap();
+        fs::write(root.join("sub").join("b.md"), "world").unwrap();
+
+        let s1 = dir_signature(&root);
+        let s2 = dir_signature(&root);
+        assert_eq!(s1, s2, "identical tree must hash equal across calls");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn signature_changes_when_file_added() {
+        let root = temp_dir("sig-add");
+        fs::write(root.join("a.md"), "x").unwrap();
+        let before = dir_signature(&root);
+
+        fs::write(root.join("b.md"), "y").unwrap();
+        let after = dir_signature(&root);
+        assert_ne!(before, after, "adding a file must change the signature");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn signature_changes_when_file_removed() {
+        let root = temp_dir("sig-remove");
+        fs::write(root.join("a.md"), "x").unwrap();
+        fs::write(root.join("b.md"), "y").unwrap();
+        let before = dir_signature(&root);
+
+        fs::remove_file(root.join("b.md")).unwrap();
+        let after = dir_signature(&root);
+        assert_ne!(before, after, "removing a file must change the signature");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn signature_changes_when_file_renamed() {
+        let root = temp_dir("sig-rename");
+        fs::write(root.join("a.md"), "x").unwrap();
+        let before = dir_signature(&root);
+
+        fs::rename(root.join("a.md"), root.join("renamed.md")).unwrap();
+        let after = dir_signature(&root);
+        assert_ne!(before, after, "renaming a file must change the signature");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn signature_ignores_hidden_entries() {
+        // The .trash folder and dotfiles must not perturb the signature, so
+        // trashing/internal churn doesn't spuriously fire workspace:changed.
+        let root = temp_dir("sig-hidden");
+        fs::write(root.join("a.md"), "x").unwrap();
+        let before = dir_signature(&root);
+
+        fs::create_dir(root.join(".trash")).unwrap();
+        fs::write(root.join(".trash").join("old.md"), "junk").unwrap();
+        fs::write(root.join(".dotfile"), "z").unwrap();
+        let after = dir_signature(&root);
+        assert_eq!(before, after, "hidden entries must not affect the signature");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn signature_distinguishes_a_new_inbox() {
+        // The Quick Capture regression in plain terms: creating Inbox.md must
+        // produce a different signature so the watcher fires and the sidebar
+        // refreshes.
+        let root = temp_dir("sig-inbox");
+        fs::write(root.join("note.md"), "existing").unwrap();
+        let before = dir_signature(&root);
+
+        fs::write(root.join("Inbox.md"), "# Inbox\n").unwrap();
+        let after = dir_signature(&root);
+        assert_ne!(before, after, "a new Inbox.md must change the signature");
+
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn splice_into_empty_creates_header_and_section() {

@@ -1,15 +1,9 @@
 /**
- * Unit tests for the Quick Capture parser.
- *
- * Uses Node's built-in test runner — no extra dev dependency. Run with:
- *
- *   node --test src/services/parseCapture.test.ts
- *
- * (Node 22.6+ strips TypeScript types natively; this repo runs Node 26.)
+ * Unit tests for the Quick Capture parser. Run via `npm test` (Vitest).
  */
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
-import { activeAtToken, parseCapture } from "./parseCapture.ts";
+import { activeAtToken, parseCapture } from "./parseCapture";
 
 test("plain body with a trailing tag", () => {
   assert.deepEqual(parseCapture("Zadzwonić do księgowej jutro rano #task"), {

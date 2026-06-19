@@ -65,6 +65,11 @@ pub fn run() {
             let state = WorkspaceState::initialize(app.handle())?;
             app.manage(state);
 
+            // Start the workspace-wide directory watcher so new/removed/renamed
+            // files (external edits, git pull, Quick Capture's new Inbox.md)
+            // fire `workspace:changed` and the sidebar refreshes.
+            app.state::<WorkspaceState>().restart_dir_watcher(app.handle());
+
             // Bind the default Quick Capture accelerator at startup so the
             // hotkey works before the frontend mounts. The frontend re-asserts
             // the user's persisted choice on launch (settings are the source of

@@ -516,6 +516,29 @@ export function App() {
     };
   }, [reloadOpenFromDisk]);
 
+  // Subscribe to the backend's `workspace:changed` event — fired by the
+  // directory watcher when files are added/removed/renamed anywhere in the
+  // active workspace (external edits, git pull, or Splot's own Quick Capture
+  // window writing a new Inbox.md). Reload the tree so the sidebar stays in
+  // sync. Debounced so a burst of changes coalesces into one refresh.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    let timer: number | undefined;
+    void listen("workspace:changed", () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refreshTree(), 150);
+    }).then((u) => {
+      if (cancelled) u();
+      else unlisten = u;
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      unlisten?.();
+    };
+  }, [refreshTree]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
