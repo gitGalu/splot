@@ -1,20 +1,56 @@
-name: Build (manual)
+name: CI
 
-# Manual cross-platform build. Produces installer artifacts you can download
-# from the workflow run page. Does NOT create a GitHub Release — that's the
-# job of release.yml, triggered by pushing a `v*` tag.
-#
-# Note: this workflow does NOT sign updater artifacts. Manual builds are
-# meant for smoke-testing installers; they cannot be served to the
-# auto-updater because they have no valid signature. Tauri logs a warning
-# during build (because `bundle.createUpdaterArtifacts` is true in
-# tauri.conf.json) which is expected and harmless here.
+# Two purposes:
+#  - `test` runs on every push/PR: typecheck + frontend (Vitest) and Rust
+#    (cargo test) suites. Fast, no platform matrix.
+#  - `build` is manual (workflow_dispatch): a cross-platform smoke build that
+#    produces downloadable installer artifacts. It does NOT create a GitHub
+#    Release (that's release.yml, triggered by a `v*` tag) and does NOT sign
+#    updater artifacts, so its installers can't be served to the auto-updater.
+#    The updater warning Tauri logs during this build is expected and harmless.
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: test
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Frontend tests
+        run: npm test
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
   build:
+    # Manual only — the cross-platform installer smoke build.
+    if: github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
