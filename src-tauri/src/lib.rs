@@ -7,10 +7,16 @@ use tauri::Manager;
 #[cfg(target_os = "macos")]
 use tauri_plugin_opener::OpenerExt;
 use workspace::{
-    cmd_add_workspace, cmd_create_entry, cmd_list_workspace, cmd_list_workspaces,
+    cmd_add_workspace, cmd_append_inbox, cmd_create_entry, cmd_list_workspace, cmd_list_workspaces,
     cmd_move_entry, cmd_read_file, cmd_remove_workspace, cmd_rename_entry, cmd_search_content,
-    cmd_switch_workspace, cmd_trash_entry, cmd_unwatch_file, cmd_watch_file, cmd_workspace_info,
-    cmd_write_file, WorkspaceState,
+    cmd_switch_workspace, cmd_trash_entry, cmd_undo_inbox, cmd_unwatch_file, cmd_watch_file,
+    cmd_workspace_info, cmd_write_file, WorkspaceState,
+};
+
+mod quick_capture;
+use quick_capture::{
+    cmd_close_quick_capture, cmd_set_quick_capture_shortcut,
+    cmd_unregister_quick_capture_shortcut,
 };
 
 #[cfg(target_os = "macos")]
@@ -41,7 +47,9 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        .plugin(quick_capture::plugin())
+        .manage(quick_capture::QuickCaptureShortcut::default());
 
     // Auto-update is intentionally desktop-only and intentionally excludes
     // Linux: Flatpak builds are managed by the package; raw deb/AppImage
@@ -56,6 +64,21 @@ pub fn run() {
         .setup(|app| {
             let state = WorkspaceState::initialize(app.handle())?;
             app.manage(state);
+
+            // Bind the default Quick Capture accelerator at startup so the
+            // hotkey works before the frontend mounts. The frontend re-asserts
+            // the user's persisted choice on launch (settings are the source of
+            // truth); a failure here is non-fatal — the window stays reachable
+            // via the command palette / in-app shortcut.
+            {
+                let app_handle = app.handle().clone();
+                let shortcut_state = app.state::<quick_capture::QuickCaptureShortcut>();
+                let _ = quick_capture::cmd_set_quick_capture_shortcut(
+                    app_handle,
+                    shortcut_state,
+                    quick_capture::DEFAULT_SHORTCUT.to_string(),
+                );
+            }
 
             // macOS: full default menu (system requires one) + a Help submenu
             //        with the repo link.
@@ -102,6 +125,11 @@ pub fn run() {
             cmd_rename_entry,
             cmd_watch_file,
             cmd_unwatch_file,
+            cmd_append_inbox,
+            cmd_undo_inbox,
+            cmd_set_quick_capture_shortcut,
+            cmd_unregister_quick_capture_shortcut,
+            cmd_close_quick_capture,
         ])
         .run(tauri::generate_context!())
         .expect("error while running splot");

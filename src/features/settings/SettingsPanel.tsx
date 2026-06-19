@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { t } from "../../i18n/i18n";
-import { formatShortcutString } from "../../services/keyLabel";
+import { formatShortcut, formatShortcutString } from "../../services/keyLabel";
+import { applyShortcut } from "../../services/quickCapture";
 import {
   AUTOSAVE_MAX_MS,
   AUTOSAVE_MIN_MS,
@@ -22,10 +23,47 @@ interface Props {
 export function SettingsPanel({ onClose }: Props) {
   const settings = useSettings();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [recording, setRecording] = useState(false);
+  const [shortcutError, setShortcutError] = useState(false);
 
   useEffect(() => {
     closeRef.current?.focus();
   }, []);
+
+  // Record a new Quick Capture shortcut. We require a modifier so the combo is
+  // a real global hotkey (a bare letter would steal every keystroke). Builds a
+  // spec in the app's `Mod+Shift+Key` form, persists it (which re-binds the
+  // global shortcut via App's effect), and also tries the bind here so we can
+  // surface a conflict immediately if the OS refuses the combo.
+  const onShortcutKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!recording) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        setRecording(false);
+        return;
+      }
+      const key = e.key;
+      // Ignore lone modifier presses — wait for the actual key.
+      if (["Shift", "Control", "Meta", "Alt"].includes(key)) return;
+      const hasMod = e.metaKey || e.ctrlKey;
+      if (!hasMod) return; // require at least Cmd/Ctrl
+
+      const tokens: string[] = ["Mod"];
+      if (e.altKey) tokens.push("Alt");
+      if (e.shiftKey) tokens.push("Shift");
+      // Normalise the main key: single chars uppercased, named keys as-is.
+      tokens.push(key.length === 1 ? key.toUpperCase() : key);
+      const spec = tokens.join("+");
+
+      setRecording(false);
+      setShortcutError(false);
+      setSetting("quickCaptureShortcut", spec);
+      void applyShortcut(spec).then((err) => setShortcutError(err != null));
+    },
+    [recording],
+  );
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -284,6 +322,54 @@ export function SettingsPanel({ onClose }: Props) {
             <h3 className="settings-section-title">
               {t("settings.section.shortcuts")}
             </h3>
+            <label className="settings-row">
+              <input
+                type="checkbox"
+                checked={settings.quickCaptureEnabled}
+                onChange={(e) =>
+                  setSetting("quickCaptureEnabled", e.target.checked)
+                }
+              />
+              <span className="settings-row-main">
+                <span className="settings-row-label">
+                  {t("settings.quickCaptureEnabled.label")}
+                </span>
+                <span className="settings-row-help">
+                  {t("settings.quickCaptureEnabled.help")}
+                </span>
+              </span>
+            </label>
+            <div className="settings-row settings-row--stack">
+              <div className="settings-row-main">
+                <span className="settings-row-label">
+                  {t("settings.quickCapture.label")}
+                </span>
+                <span className="settings-row-help">
+                  {t("settings.quickCapture.help")}
+                </span>
+                {shortcutError && settings.quickCaptureEnabled ? (
+                  <span className="settings-row-help" style={{ color: "var(--color-danger-text)" }}>
+                    {t("settings.quickCapture.conflict")}
+                  </span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className={`settings-shortcut-field ${recording ? "is-recording" : ""}`}
+                disabled={!settings.quickCaptureEnabled}
+                onClick={() => setRecording(true)}
+                onBlur={() => setRecording(false)}
+                onKeyDown={onShortcutKeyDown}
+              >
+                {recording
+                  ? t("settings.quickCapture.recording")
+                  : formatShortcut(settings.quickCaptureShortcut).map((tok, i) => (
+                      <kbd key={i} className="settings-kbd">
+                        {tok}
+                      </kbd>
+                    ))}
+              </button>
+            </div>
             <label className="settings-row">
               <input
                 type="checkbox"

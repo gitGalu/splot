@@ -19,6 +19,10 @@ tauri = { version = "2", features = [] }
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+# Global shortcut powers Quick Capture's OS-wide hotkey. Desktop-only by
+# nature; the plugin is a no-op target on mobile so it stays in the shared
+# dependency list.
+tauri-plugin-global-shortcut = "2"
 
 [target."cfg(any(target_os = \"macos\", windows))".dependencies]
 tauri-plugin-updater = "2"

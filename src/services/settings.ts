@@ -33,7 +33,17 @@ export interface Settings {
   typewriterMode: boolean;
   /** When true, paragraphs other than the one with the caret are dimmed. */
   focusMode: boolean;
+  /** Global shortcut spec (e.g. "Mod+Shift+I") that opens Quick Capture.
+   *  Stored in the platform-neutral spec form used across the app; translated
+   *  to Tauri's accelerator syntax at the service boundary. */
+  quickCaptureShortcut: string;
+  /** When false, Quick Capture is fully disabled: the global hotkey is
+   *  unregistered, the in-app shortcut is inert, and the command palette entry
+   *  is hidden. */
+  quickCaptureEnabled: boolean;
 }
+
+export const QUICK_CAPTURE_DEFAULT_SHORTCUT = "Mod+Shift+I";
 
 export const AUTOSAVE_MIN_MS = 500;
 export const AUTOSAVE_MAX_MS = 10_000;
@@ -58,6 +68,8 @@ const DEFAULTS: Settings = {
   wheelZoom: true,
   typewriterMode: false,
   focusMode: false,
+  quickCaptureShortcut: QUICK_CAPTURE_DEFAULT_SHORTCUT,
+  quickCaptureEnabled: true,
 };
 
 export const FONT_STACKS: Record<FontChoice, string> = {
@@ -109,4 +121,42 @@ export function setSetting<K extends keyof Settings>(key: K, value: Settings[K])
 
 export function useSettings(): Settings {
   return useSyncExternalStore(subscribe, getSettings, getSettings);
+}
+
+/**
+ * Re-read settings from `localStorage` and notify subscribers if anything
+ * changed. Each Tauri webview has its own JS context but shares `localStorage`,
+ * so a setting written in the main window isn't seen by the Quick Capture
+ * window's in-memory copy until it reloads. Call this when a secondary window
+ * regains focus to pick up changes made elsewhere.
+ */
+export function reloadSettings(): void {
+  const next = load();
+  if (JSON.stringify(next) !== JSON.stringify(current)) {
+    current = next;
+    emit();
+  }
+}
+
+/**
+ * Apply the explicit theme override to the document root. `"system"` adds no
+ * class, letting the `prefers-color-scheme` media query in tokens.css pick the
+ * palette; `"light"`/`"dark"` force it. Shared by every window (main editor +
+ * Quick Capture) so they stay visually consistent.
+ */
+export function applyThemeClass(theme: ThemeChoice): void {
+  const root = document.documentElement;
+  root.classList.remove("theme-light", "theme-dark");
+  if (theme === "light") root.classList.add("theme-light");
+  else if (theme === "dark") root.classList.add("theme-dark");
+}
+
+/**
+ * Keep the document root's theme class in sync with the setting, now and on
+ * every change. Returns an unsubscribe fn. For windows that aren't already
+ * subscribed to settings via React (e.g. the standalone Quick Capture entry).
+ */
+export function watchThemeClass(): () => void {
+  applyThemeClass(getSettings().theme);
+  return subscribe(() => applyThemeClass(getSettings().theme));
 }

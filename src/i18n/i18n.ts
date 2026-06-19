@@ -277,6 +277,38 @@ const pl: Dict = {
   "help.md.links": "[tekst](https://…)",
   "help.md.code": "`kod w tekście`  ·  ``` blok ```",
   "help.md.quote": "> cytat",
+
+  // Quick Capture
+  "qc.title": "Quick Capture",
+  "qc.placeholder":
+    "Zapisz do Inboxa… (@Folder wybiera katalog, #tag dodaje tag)",
+  "qc.hint":
+    "Enter zapisuje · Shift+Enter nowa linia · Esc zamyka",
+  "qc.saved": "Zapisano do Inbox",
+  "qc.savedTo": "Zapisano do {path}",
+  "qc.dirMissing":
+    "Katalog „{name}\" nie istnieje. Zapisano do globalnego Inboxa.",
+  "qc.empty": "Nie można zapisać pustego wpisu.",
+  "qc.noWorkspace": "Nie ustawiono katalogu roboczego.",
+  "qc.invalidName": "Niedozwolona nazwa katalogu.",
+  "qc.outsideRoot": "Nie można zapisać poza katalogiem roboczym.",
+  "qc.writeFailed":
+    "Nie udało się zapisać wpisu. Sprawdź uprawnienia do katalogu.",
+  "qc.undo": "Cofnij",
+  "qc.open": "Otwórz",
+
+  // Quick Capture — command & help & settings
+  "cmd.quickCapture.open": "Quick Capture (szybki zapis do Inboxa)…",
+  "help.nav.quickCapture": "Quick Capture — szybki zapis do Inboxa",
+  "settings.quickCaptureEnabled.label": "Włącz Quick Capture",
+  "settings.quickCaptureEnabled.help":
+    "Gdy wyłączone, globalny skrót zostaje wyrejestrowany, a szybki zapis do Inboxa jest niedostępny (także z palety komend).",
+  "settings.quickCapture.label": "Skrót globalny Quick Capture",
+  "settings.quickCapture.help":
+    "Globalny skrót, który otwiera okno szybkiego zapisu do Inboxa — działa także, gdy Splot jest w tle. Kliknij pole i naciśnij kombinację, aby zmienić.",
+  "settings.quickCapture.recording": "Naciśnij kombinację…",
+  "settings.quickCapture.conflict":
+    "Nie udało się przypisać skrótu — może być zajęty przez inną aplikację. Quick Capture pozostaje dostępny z palety komend.",
 };
 
 const active: Dict = pl;

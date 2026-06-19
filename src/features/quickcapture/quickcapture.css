@@ -1,0 +1,162 @@
+/* Quick Capture window. Transparent, frameless, always-on-top — so the visible
+ * surface is the rounded card drawn here, floating over whatever the user was
+ * doing. Colors come from tokens.css and follow the light/dark palette. */
+
+/* The card fills the whole window. We do NOT rely on window transparency for
+ * the look: on some macOS versions a "transparent" frameless webview still
+ * paints an opaque white backing, which would show as an ugly square border
+ * around an inset card. So the card reaches every edge and the body itself is
+ * the card colour — nothing white can leak. The OS rounds the frameless
+ * window's corners natively, and we match that radius so the fill doesn't poke
+ * past them. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-raised);
+}
+
+#root {
+  box-sizing: border-box;
+  height: 100%;
+  display: flex;
+}
+
+.qc-shell {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-bg-raised);
+  border-radius: var(--radius-3);
+  font-family: var(--font-ui);
+  color: var(--color-text);
+}
+
+/* Discreet brand line — the window pops up over other apps, so it needs to
+ * say where it came from. Kept small and faint so it labels without shouting. */
+.qc-titlebar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-ui-small);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.qc-brand {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.qc-brand-sep {
+  color: var(--color-text-faint);
+}
+
+.qc-brand-sub {
+  color: var(--color-text-faint);
+}
+
+.qc-input-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.qc-input {
+  flex: 1 1 auto;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-text-strong);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+/* Folder autocomplete dropdown — overlays the bottom of the input area. */
+.qc-suggest {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  max-height: 132px;
+  overflow-y: auto;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+  z-index: 2;
+}
+
+.qc-suggest-item {
+  padding: 4px 8px;
+  border-radius: var(--radius-1);
+  font-size: var(--font-size-ui-small);
+  color: var(--color-text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qc-suggest-item.is-active {
+  background: var(--color-active);
+  color: var(--color-text-strong);
+}
+
+.qc-input::placeholder {
+  color: var(--color-text-faint);
+}
+
+.qc-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+  font-size: var(--font-size-ui-small);
+}
+
+.qc-hint {
+  color: var(--color-text-faint);
+}
+
+.qc-error {
+  color: var(--color-danger-text);
+}
+
+.qc-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.qc-toast-msg {
+  color: var(--color-text);
+}
+
+.qc-action {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.qc-action:hover {
+  color: var(--color-text-strong);
+}

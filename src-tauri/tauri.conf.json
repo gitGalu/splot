@@ -20,6 +20,22 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "dragDropEnabled": false
+      },
+      {
+        "label": "quick-capture",
+        "url": "quick-capture.html",
+        "title": "Quick Capture",
+        "width": 580,
+        "height": 220,
+        "resizable": false,
+        "decorations": false,
+        "transparent": false,
+        "shadow": true,
+        "alwaysOnTop": true,
+        "center": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "visible": false
       }
     ],
     "security": {

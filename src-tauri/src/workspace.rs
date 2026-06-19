@@ -908,6 +908,223 @@ pub fn cmd_trash_entry(
     Ok(relative_string(&root, &target))
 }
 
+// ─── Quick Capture (Inbox) ────────────────────────────────────────────────
+
+const INBOX_FILE: &str = "Inbox.md";
+const INBOX_HEADER: &str = "# Inbox\n";
+
+/// Calendar date + clock time as `(YYYY-MM-DD, HH:mm)`, in **UTC**.
+///
+/// Rust's std has no timezone database, so adding local-time support would
+/// mean a new dependency (e.g. `chrono`/`time`) — deliberately avoided to keep
+/// the feature minimal. This matches the existing `timestamp_suffix`, which is
+/// also UTC. If local-time stamps become a requirement, swap this one helper.
+fn utc_date_time() -> (String, String) {
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let days = (secs / 86_400) as i64;
+    let (y, mo, d) = civil_from_days(days);
+    let rem = secs % 86_400;
+    let h = rem / 3_600;
+    let mi = (rem % 3_600) / 60;
+    (
+        format!("{:04}-{:02}-{:02}", y, mo, d),
+        format!("{:02}:{:02}", h, mi),
+    )
+}
+
+#[derive(Serialize)]
+pub struct InboxAppendResult {
+    /// Workspace-relative path of the file written to (`/`-separated).
+    pub path: String,
+    /// The exact block appended to the file (header line + body).
+    pub appended: String,
+    /// True when a `@Folder` was requested but that directory does not exist,
+    /// so the entry was redirected to the global inbox at the workspace root.
+    pub dir_missing: bool,
+}
+
+/// Append a Quick Capture entry to an `Inbox.md` file.
+///
+/// `target_dir` is `None` for the global inbox (`<root>/Inbox.md`) or a single
+/// folder name for `<root>/<target_dir>/Inbox.md`. The folder name is
+/// validated with the same rules as other user-supplied names (no `/`, `\`,
+/// `:`, `.`, `..`, NUL), and the resolved path is checked to stay inside the
+/// workspace root via `resolve_within` — so input like `@../../Desktop` is
+/// rejected outright.
+///
+/// MVP behaviour for a non-existent target directory: do NOT create it. Fall
+/// back to the global inbox and report `dir_missing: true` so the UI can warn.
+///
+/// The file is created with a `# Inbox` header if absent. Entries are grouped
+/// under a `## YYYY-MM-DD` date section (appended if today's is missing), and
+/// each entry is `### HH:mm #tag1 #tag2` followed by the body. Existing
+/// content is never overwritten — we read, splice, and write the whole file.
+#[tauri::command]
+pub fn cmd_append_inbox(
+    state: State<'_, WorkspaceState>,
+    target_dir: Option<String>,
+    tags: Vec<String>,
+    body: String,
+) -> Result<InboxAppendResult, WorkspaceError> {
+    let trimmed_body = body.trim();
+    if trimmed_body.is_empty() {
+        return Err(WorkspaceError::EmptyName);
+    }
+
+    // Resolve the destination inbox path. For a named folder we validate the
+    // name and confirm the directory exists; otherwise we fall back to the
+    // global inbox and flag it.
+    let mut dir_missing = false;
+    let rel_path = match target_dir.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(name) => {
+            if has_invalid_char(name) || name.contains('/') {
+                return Err(WorkspaceError::InvalidName);
+            }
+            let dir = state.resolve_within(name)?;
+            if dir.is_dir() {
+                format!("{}/{}", name, INBOX_FILE)
+            } else {
+                // MVP: don't create the folder; redirect to the global inbox.
+                dir_missing = true;
+                INBOX_FILE.to_string()
+            }
+        }
+        None => INBOX_FILE.to_string(),
+    };
+
+    // resolve_within guarantees the path stays inside the workspace root.
+    let file_path = state.resolve_within(&rel_path)?;
+
+    let (date, time) = utc_date_time();
+
+    // Build the entry block. Tags are normalised to start with a single `#`
+    // and de-duplication already happened in the frontend parser, but we guard
+    // against empties here.
+    let tag_str = tags
+        .iter()
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .map(|t| {
+            if let Some(stripped) = t.strip_prefix('#') {
+                format!("#{}", stripped)
+            } else {
+                format!("#{}", t)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let entry_header = if tag_str.is_empty() {
+        format!("### {}", time)
+    } else {
+        format!("### {} {}", time, tag_str)
+    };
+    let appended = format!("{}\n{}", entry_header, trimmed_body);
+
+    let existing = if file_path.exists() {
+        fs::read_to_string(&file_path)?
+    } else {
+        String::new()
+    };
+
+    let next = splice_inbox_entry(&existing, &date, &appended);
+
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&file_path, next)?;
+
+    Ok(InboxAppendResult {
+        path: rel_path,
+        appended,
+        dir_missing,
+    })
+}
+
+/// Undo the most recent Quick Capture append: remove the last occurrence of
+/// `appended` from the given inbox file. Best-effort and conservative — if the
+/// block can't be found (the user edited the file in between), we leave the
+/// file untouched and succeed silently rather than risk deleting the wrong
+/// content. `path` is validated to stay within the workspace root.
+#[tauri::command]
+pub fn cmd_undo_inbox(
+    state: State<'_, WorkspaceState>,
+    path: String,
+    appended: String,
+) -> Result<(), WorkspaceError> {
+    let file_path = state.resolve_within(&path)?;
+    if !file_path.is_file() {
+        return Ok(()); // nothing to undo
+    }
+    let contents = fs::read_to_string(&file_path)?;
+
+    // Find the last occurrence of the exact block we appended.
+    let Some(idx) = contents.rfind(&appended) else {
+        return Ok(()); // block not found — leave the file as-is
+    };
+
+    let mut before = contents[..idx].to_string();
+    let after = &contents[idx + appended.len()..];
+
+    // Tidy the whitespace the removal leaves behind: collapse the blank-line
+    // gap that separated this entry from the previous one, so undo restores the
+    // file close to its pre-append shape.
+    while before.ends_with('\n') {
+        before.pop();
+    }
+    let trimmed_after = after.trim_start_matches('\n');
+
+    let mut next = before;
+    if !next.is_empty() && !trimmed_after.is_empty() {
+        next.push_str("\n\n");
+    }
+    next.push_str(trimmed_after);
+    // Keep a single trailing newline if there's any content left.
+    if !next.is_empty() && !next.ends_with('\n') {
+        next.push('\n');
+    }
+
+    fs::write(&file_path, next)?;
+    Ok(())
+}
+
+/// Insert an entry block into an inbox document, creating the `# Inbox` header
+/// and the `## <date>` section as needed, without disturbing existing content.
+///
+/// Rules:
+///  - empty/whitespace document → start fresh with header + date section + entry;
+///  - today's `## <date>` section present → append the entry to the end of the
+///    file (the latest entry of the day goes last, matching reading order);
+///  - today's section absent → append a new date section at the end.
+fn splice_inbox_entry(existing: &str, date: &str, entry: &str) -> String {
+    let date_heading = format!("## {}", date);
+
+    if existing.trim().is_empty() {
+        return format!("{}\n{}\n\n{}\n", INBOX_HEADER, date_heading, entry);
+    }
+
+    // Ensure a single trailing newline to append cleanly.
+    let base = existing.trim_end_matches('\n');
+
+    // Does today's date section already exist? We match a line that is exactly
+    // the date heading (allowing trailing spaces).
+    let has_today = base
+        .lines()
+        .any(|line| line.trim_end() == date_heading);
+
+    if has_today {
+        // Append the new entry at the end of the document. Within a single
+        // day's inbox the sections are in chronological order already, so the
+        // end of the file is the end of today's section.
+        format!("{}\n\n{}\n", base, entry)
+    } else {
+        format!("{}\n\n{}\n\n{}\n", base, date_heading, entry)
+    }
+}
+
 #[tauri::command]
 pub fn cmd_search_content(
     state: State<'_, WorkspaceState>,
@@ -1066,4 +1283,78 @@ pub fn cmd_remove_workspace(
 
     state.persist_registry()?;
     cmd_list_workspaces(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn splice_into_empty_creates_header_and_section() {
+        let out = splice_inbox_entry("", "2026-06-19", "### 15:18 #task\nZadzwonić");
+        assert_eq!(
+            out,
+            "# Inbox\n\n## 2026-06-19\n\n### 15:18 #task\nZadzwonić\n"
+        );
+    }
+
+    #[test]
+    fn splice_into_whitespace_only_treated_as_empty() {
+        let out = splice_inbox_entry("   \n\n  ", "2026-06-19", "### 09:00\nNotatka");
+        assert_eq!(out, "# Inbox\n\n## 2026-06-19\n\n### 09:00\nNotatka\n");
+    }
+
+    #[test]
+    fn splice_appends_under_existing_today_section() {
+        let existing = "# Inbox\n\n## 2026-06-19\n\n### 14:32\nPierwszy\n";
+        let out = splice_inbox_entry(existing, "2026-06-19", "### 15:02 #task\nDrugi");
+        assert_eq!(
+            out,
+            "# Inbox\n\n## 2026-06-19\n\n### 14:32\nPierwszy\n\n### 15:02 #task\nDrugi\n"
+        );
+    }
+
+    #[test]
+    fn splice_adds_new_date_section_when_today_missing() {
+        let existing = "# Inbox\n\n## 2026-06-18\n\n### 23:50\nWczoraj\n";
+        let out = splice_inbox_entry(existing, "2026-06-19", "### 08:00\nDzisiaj");
+        assert_eq!(
+            out,
+            "# Inbox\n\n## 2026-06-18\n\n### 23:50\nWczoraj\n\n## 2026-06-19\n\n### 08:00\nDzisiaj\n"
+        );
+    }
+
+    #[test]
+    fn splice_then_undo_round_trips() {
+        // Appending then undoing should leave the document materially as it was.
+        let original = "# Inbox\n\n## 2026-06-19\n\n### 14:32\nPierwszy\n";
+        let entry = "### 15:02 #task\nDrugi";
+        let after_append = splice_inbox_entry(original, "2026-06-19", entry);
+        // Simulate cmd_undo_inbox's stripping on the appended string.
+        let idx = after_append.rfind(entry).expect("entry present");
+        let mut before = after_append[..idx].to_string();
+        let tail = &after_append[idx + entry.len()..];
+        while before.ends_with('\n') {
+            before.pop();
+        }
+        let trimmed_after = tail.trim_start_matches('\n');
+        let mut next = before;
+        if !next.is_empty() && !trimmed_after.is_empty() {
+            next.push_str("\n\n");
+        }
+        next.push_str(trimmed_after);
+        if !next.is_empty() && !next.ends_with('\n') {
+            next.push('\n');
+        }
+        assert_eq!(next, original);
+    }
+
+    #[test]
+    fn invalid_folder_names_are_rejected() {
+        // The `..` traversal and separators must never pass name validation.
+        assert!(has_invalid_char(".."));
+        assert!(has_invalid_char("a:b"));
+        assert!(has_invalid_char("a\\b"));
+        assert!("a/b".contains('/'));
+    }
 }

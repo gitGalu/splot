@@ -31,6 +31,7 @@ import { UpdateModal } from "../features/updates/UpdateModal";
 import { ConflictDiffModal } from "../features/conflict/ConflictDiffModal";
 import { isUpdaterSupported } from "../services/updater";
 import {
+  applyThemeClass,
   FONT_SIZE_DEFAULT,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
@@ -41,6 +42,7 @@ import {
 import { forgetCursor, getCursor, setCursor } from "../services/cursorMemory";
 import { forgetLastFile, getLastFile, setLastFile } from "../services/lastFile";
 import { formatShortcutString } from "../services/keyLabel";
+import { applyShortcut, clearShortcut } from "../services/quickCapture";
 import { t } from "../i18n/i18n";
 
 const SIDEBAR_DEFAULT = 260;
@@ -69,14 +71,18 @@ export function App() {
   const [diffTheirs, setDiffTheirs] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
-  const { autosaveDelayMs, theme, showTrash, typewriterMode, focusMode } =
-    useSettings();
+  const {
+    autosaveDelayMs,
+    theme,
+    showTrash,
+    typewriterMode,
+    focusMode,
+    quickCaptureShortcut,
+    quickCaptureEnabled,
+  } = useSettings();
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.remove("theme-light", "theme-dark");
-    if (theme === "light") root.classList.add("theme-light");
-    else if (theme === "dark") root.classList.add("theme-dark");
+    applyThemeClass(theme);
   }, [theme]);
   const [registry, setRegistry] = useState<WorkspaceRegistry | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -594,6 +600,51 @@ export function App() {
     return () => window.removeEventListener("wheel", onWheel);
   }, []);
 
+  // Keep the OS-wide Quick Capture shortcut in sync with the settings (the
+  // source of truth). Registers when enabled, unregisters when disabled, and
+  // rebinds when the user changes the combo. Failures (combo taken, no
+  // permission) are non-fatal: the window stays reachable from the command
+  // palette / in-app shortcut below.
+  useEffect(() => {
+    if (quickCaptureEnabled) {
+      void applyShortcut(quickCaptureShortcut);
+    } else {
+      void clearShortcut();
+    }
+  }, [quickCaptureShortcut, quickCaptureEnabled]);
+
+  // Open the Quick Capture window from within the app (command palette or the
+  // in-app shortcut). The global shortcut handles the out-of-app path in Rust;
+  // this is the in-app entry point, so the feature works even when the OS-wide
+  // shortcut couldn't be registered.
+  const openQuickCapture = useCallback(async () => {
+    try {
+      const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+      const win = await WebviewWindow.getByLabel("quick-capture");
+      if (!win) return;
+      await win.center();
+      await win.show();
+      await win.setFocus();
+    } catch {
+      /* best-effort: window may not exist on unsupported targets */
+    }
+  }, []);
+
+  // In-app Quick Capture shortcut. Mirrors the configured global shortcut so
+  // it works while the main window is focused (independent of whether the OS
+  // granted the global hotkey). Matches the spec tokens against the event.
+  useEffect(() => {
+    if (!quickCaptureEnabled) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (matchesSpec(e, quickCaptureShortcut)) {
+        e.preventDefault();
+        void openQuickCapture();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [quickCaptureShortcut, quickCaptureEnabled, openQuickCapture]);
+
   const handleCreate = useCallback(
     async (rel: string) => {
       await flushPending();
@@ -738,6 +789,20 @@ export function App() {
       },
     ];
 
+    if (quickCaptureEnabled) {
+      // Insert right after the quick-open entries so it sits with the other
+      // "go" actions. Hidden entirely when the feature is disabled.
+      list.splice(2, 0, {
+        id: "quickCapture.open",
+        label: t("cmd.quickCapture.open"),
+        group: GO,
+        hint: formatShortcutString(quickCaptureShortcut),
+        run: () => {
+          void openQuickCapture();
+        },
+      });
+    }
+
     if (isUpdaterSupported) {
       list.push({
         id: "update.check",
@@ -855,6 +920,9 @@ export function App() {
     registry,
     typewriterMode,
     focusMode,
+    quickCaptureShortcut,
+    quickCaptureEnabled,
+    openQuickCapture,
     handleSave,
     handleOpenFolder,
     handleCloseFile,
@@ -1090,6 +1158,25 @@ export function App() {
       ) : null}
     </div>
   );
+}
+
+/**
+ * Does a keyboard event match an app shortcut spec like `"Mod+Shift+I"`?
+ * `Mod` means Cmd on macOS, Ctrl elsewhere — mirroring `metaKey || ctrlKey`
+ * used throughout the app. Used for the in-app Quick Capture shortcut so it
+ * tracks the same setting that drives the global hotkey.
+ */
+function matchesSpec(e: KeyboardEvent, spec: string): boolean {
+  const tokens = spec.split("+").map((t) => t.trim());
+  const wantMod = tokens.includes("Mod") || tokens.includes("Cmd");
+  const wantShift = tokens.includes("Shift");
+  const wantAlt = tokens.includes("Alt") || tokens.includes("Option");
+  const keyToken = tokens[tokens.length - 1]?.toLowerCase();
+  const mod = e.metaKey || e.ctrlKey;
+  if (wantMod !== mod) return false;
+  if (wantShift !== e.shiftKey) return false;
+  if (wantAlt !== e.altKey) return false;
+  return e.key.toLowerCase() === keyToken;
 }
 
 function joinPath(root: string, rel: string): string {
