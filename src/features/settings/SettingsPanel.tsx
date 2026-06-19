@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { t } from "../../i18n/i18n";
 import { formatShortcut, formatShortcutString } from "../../services/keyLabel";
-import { applyShortcut } from "../../services/quickCapture";
+import { applyShortcut, clearShortcut } from "../../services/quickCapture";
 import {
   AUTOSAVE_MAX_MS,
   AUTOSAVE_MIN_MS,
@@ -25,28 +25,43 @@ export function SettingsPanel({ onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [recording, setRecording] = useState(false);
   const [shortcutError, setShortcutError] = useState(false);
+  // True when the recording session committed a new combo (vs. was cancelled),
+  // so the effect cleanup knows whether to restore the previous shortcut.
+  const committedRef = useRef(false);
 
   useEffect(() => {
     closeRef.current?.focus();
   }, []);
 
-  // Record a new Quick Capture shortcut. We require a modifier so the combo is
-  // a real global hotkey (a bare letter would steal every keystroke). Builds a
-  // spec in the app's `Mod+Shift+Key` form, persists it (which re-binds the
-  // global shortcut via App's effect), and also tries the bind here so we can
-  // surface a conflict immediately if the OS refuses the combo.
-  const onShortcutKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (!recording) return;
+  // Record a new Quick Capture shortcut while `recording` is true.
+  //
+  // This MUST run at the window capture phase and stop the event from
+  // propagating: the app has its own window-level keydown listeners (the
+  // in-app Quick Capture shortcut and the global keymap). If we let the combo
+  // reach them, pressing e.g. the current shortcut while recording would open
+  // the capture window and steal focus — leaving the field stuck on "press a
+  // combo". Capturing + stopImmediatePropagation makes the recorder the sole
+  // consumer of the keystroke.
+  useEffect(() => {
+    if (!recording) return;
+    // Unregister the OS-level hotkey while recording. Otherwise pressing the
+    // *current* shortcut to rebind it would fire the global handler and pop the
+    // capture window (the OS hotkey is independent of DOM events, so the
+    // capture-phase listener below can't suppress it). When recording ends
+    // without a new combo, App's effect re-applies the stored shortcut; when a
+    // new combo is chosen, applyShortcut re-registers it.
+    void clearShortcut();
+    const onKey = (e: KeyboardEvent) => {
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
+
       if (e.key === "Escape") {
         setRecording(false);
         return;
       }
       const key = e.key;
       // Ignore lone modifier presses — wait for the actual key.
-      if (["Shift", "Control", "Meta", "Alt"].includes(key)) return;
+      if (["Shift", "Control", "Meta", "Alt", "AltGraph"].includes(key)) return;
       const hasMod = e.metaKey || e.ctrlKey;
       if (!hasMod) return; // require at least Cmd/Ctrl
 
@@ -57,13 +72,25 @@ export function SettingsPanel({ onClose }: Props) {
       tokens.push(key.length === 1 ? key.toUpperCase() : key);
       const spec = tokens.join("+");
 
+      committedRef.current = true; // a new combo was chosen; it gets registered
       setRecording(false);
       setShortcutError(false);
       setSetting("quickCaptureShortcut", spec);
       void applyShortcut(spec).then((err) => setShortcutError(err != null));
-    },
-    [recording],
-  );
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      // If recording ended WITHOUT choosing a combo (Escape / blur / panel
+      // close), re-register the stored shortcut we unregistered on start.
+      // applyShortcut is idempotent, so this is safe even if the feature is
+      // disabled (App's effect will then unregister again).
+      if (!committedRef.current && settings.quickCaptureEnabled) {
+        void applyShortcut(settings.quickCaptureShortcut);
+      }
+      committedRef.current = false;
+    };
+  }, [recording, settings.quickCaptureEnabled, settings.quickCaptureShortcut]);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -357,9 +384,8 @@ export function SettingsPanel({ onClose }: Props) {
                 type="button"
                 className={`settings-shortcut-field ${recording ? "is-recording" : ""}`}
                 disabled={!settings.quickCaptureEnabled}
-                onClick={() => setRecording(true)}
+                onClick={() => setRecording((r) => !r)}
                 onBlur={() => setRecording(false)}
-                onKeyDown={onShortcutKeyDown}
               >
                 {recording
                   ? t("settings.quickCapture.recording")
