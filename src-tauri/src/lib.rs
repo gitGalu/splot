@@ -49,7 +49,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(quick_capture::plugin())
-        .manage(quick_capture::QuickCaptureShortcut::default());
+        .manage(quick_capture::QuickCaptureShortcut::default())
+        // Manage WorkspaceState on the builder, BEFORE the config-defined
+        // windows are created. The windows' webviews start invoking commands
+        // immediately — if the state were only managed inside `setup` (which
+        // runs after the windows exist), a fast webview could call a command
+        // first and hit Tauri's "state not managed" error. This was the Windows
+        // crash after auto-update. The state starts in its pre-init form and is
+        // filled in by `setup` via `initialize_into`.
+        .manage(WorkspaceState::default());
 
     // Auto-update is intentionally desktop-only and intentionally excludes
     // Linux: Flatpak builds are managed by the package; raw deb/AppImage
@@ -62,12 +70,18 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            let state = WorkspaceState::initialize(app.handle())?;
-            app.manage(state);
+            // The state is already managed (on the builder); fill it in here.
+            // On failure we log and leave it pre-init: commands then return a
+            // retryable `NotInitialized` without touching disk, and the frontend
+            // keeps retrying — no crash, no "state not managed", no data loss.
+            if let Err(e) = app.state::<WorkspaceState>().initialize_into(app.handle()) {
+                eprintln!("workspace initialization failed: {e}");
+            }
 
             // Start the workspace-wide directory watcher so new/removed/renamed
             // files (external edits, git pull, Quick Capture's new Inbox.md)
-            // fire `workspace:changed` and the sidebar refreshes.
+            // fire `workspace:changed` and the sidebar refreshes. No-op when the
+            // state stayed pre-init (no root to watch).
             app.state::<WorkspaceState>().restart_dir_watcher(app.handle());
 
             // Bind the default Quick Capture accelerator at startup so the

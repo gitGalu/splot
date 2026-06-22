@@ -91,7 +91,14 @@ struct DirWatcherHandle {
 pub struct WorkspaceState {
     root: RwLock<Option<PathBuf>>,
     registry: RwLock<Registry>,
-    registry_path: PathBuf,
+    /// `None` until `setup` finishes initializing. While `None` the state is in
+    /// its pre-init form: every command that needs it returns `NotInitialized`
+    /// (a normal, retryable error) instead of touching disk. This is what lets
+    /// us `manage` the state on the *builder* — before the config-defined
+    /// windows exist — so the webview can never hit an unmanaged state and see
+    /// Tauri's opaque "state not managed" error. The frontend retries the
+    /// initial load until `setup` populates this.
+    registry_path: RwLock<Option<PathBuf>>,
     /// Currently watched file. At most one at a time — replaced when the user
     /// switches files. `None` while the editor is idle.
     watcher: RwLock<Option<WatcherHandle>>,
@@ -100,8 +107,34 @@ pub struct WorkspaceState {
     dir_watcher: RwLock<Option<DirWatcherHandle>>,
 }
 
+impl Default for WorkspaceState {
+    /// The pre-init state, managed on the builder before any window exists.
+    /// `setup` later fills it via [`WorkspaceState::initialize_into`].
+    fn default() -> Self {
+        Self {
+            root: RwLock::new(None),
+            registry: RwLock::new(Registry::default()),
+            registry_path: RwLock::new(None),
+            watcher: RwLock::new(None),
+            dir_watcher: RwLock::new(None),
+        }
+    }
+}
+
 impl WorkspaceState {
-    pub fn initialize(app: &AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
+    /// Initialize the (already-managed, pre-init) state in place. Called once
+    /// from `setup`. On success the state becomes rooted and `registry_path` is
+    /// set, so commands start operating; on failure the state stays in its
+    /// pre-init form (`root`/`registry_path` = `None`), which means every file
+    /// command keeps returning `NotInitialized` *without touching disk* — no
+    /// reads, writes, renames or deletes. The frontend retries the initial load
+    /// until this populates the state.
+    ///
+    /// The state is `manage`d on the builder (before any window exists), so the
+    /// webview can never observe an unmanaged state — this is the fix for the
+    /// "state not managed for field `state`" error that struck on Windows when
+    /// the webview raced ahead of `setup`.
+    pub fn initialize_into(&self, app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         let data_dir = app
             .path()
             .app_data_dir()
@@ -111,16 +144,25 @@ impl WorkspaceState {
         let default_root = data_dir.join(WORKSPACE_DIR_NAME);
         let registry_path = data_dir.join(REGISTRY_FILE);
 
-        // Seed the bundled sample on first run, as before.
+        // Seed the bundled sample on first run. Best-effort: resolving or
+        // copying the bundled resources can fail on some platforms/installs
+        // (notably first-run Windows), but a missing sample must never stop the
+        // app from coming up — we always end with at least an empty default
+        // workspace so commands work and the user can start writing.
         if !default_root.exists() {
-            let resource_root = app
+            let seeded = app
                 .path()
                 .resolve(BUNDLED_WORKSPACE_SUBPATH, tauri::path::BaseDirectory::Resource)
-                .map_err(|e| format!("failed to resolve bundled workspace: {e}"))?;
+                .ok()
+                .filter(|resource_root| resource_root.exists())
+                .map(|resource_root| copy_dir_recursive(&resource_root, &default_root))
+                .transpose()
+                .unwrap_or_else(|e| {
+                    eprintln!("failed to seed bundled workspace: {e}");
+                    None
+                });
 
-            if resource_root.exists() {
-                copy_dir_recursive(&resource_root, &default_root)?;
-            } else {
+            if seeded.is_none() {
                 fs::create_dir_all(&default_root)?;
             }
         }
@@ -157,13 +199,22 @@ impl WorkspaceState {
 
         save_registry(&registry_path, &registry)?;
 
-        Ok(Self {
-            root: RwLock::new(Some(active_path)),
-            registry: RwLock::new(registry),
-            registry_path,
-            watcher: RwLock::new(None),
-            dir_watcher: RwLock::new(None),
-        })
+        // Publish into the managed state. Done last so commands only ever see a
+        // fully-formed state: `registry`/`registry_path` first, then `root`,
+        // since `root` being `Some` is the readiness signal the getters key off.
+        *self
+            .registry
+            .write()
+            .map_err(|e| format!("registry poisoned: {e}"))? = registry;
+        *self
+            .registry_path
+            .write()
+            .map_err(|e| format!("registry_path poisoned: {e}"))? = Some(registry_path);
+        *self
+            .root
+            .write()
+            .map_err(|e| format!("root poisoned: {e}"))? = Some(active_path);
+        Ok(())
     }
 
     fn root(&self) -> Result<PathBuf, WorkspaceError> {
@@ -188,11 +239,22 @@ impl WorkspaceState {
     }
 
     fn persist_registry(&self) -> Result<(), WorkspaceError> {
+        // Refuse to persist before init: without a real path we'd risk writing
+        // workspaces.json to the wrong place (or clobbering it with a blank
+        // registry). Pre-init, this is unreachable in practice — callers go
+        // through root()-gated paths first — but the guard makes data safety
+        // explicit rather than incidental.
+        let path = self
+            .registry_path
+            .read()
+            .map_err(|e| WorkspaceError::Io(format!("registry_path poisoned: {e}")))?
+            .clone()
+            .ok_or(WorkspaceError::NotInitialized)?;
         let registry = self
             .registry
             .read()
             .map_err(|e| WorkspaceError::Io(format!("registry poisoned: {e}")))?;
-        save_registry(&self.registry_path, &registry)?;
+        save_registry(&path, &registry)?;
         Ok(())
     }
 
@@ -1265,6 +1327,11 @@ pub fn cmd_search_content(
 pub fn cmd_list_workspaces(
     state: State<'_, WorkspaceState>,
 ) -> Result<Registry, WorkspaceError> {
+    // Gate on readiness: pre-init the registry is empty, and returning that
+    // would make the UI flash "no workspaces" instead of the user's real list.
+    // `NotInitialized` is retryable — the frontend re-requests until `setup`
+    // populates the state.
+    state.root()?;
     let registry = state
         .registry
         .read()

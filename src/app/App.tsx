@@ -106,7 +106,7 @@ export function App() {
 
   const refreshTree = useCallback(async () => {
     try {
-      const next = await loadWorkspaceTree(provider, showTrash);
+      const next = await retryUntilInitialized(() => loadWorkspaceTree(provider, showTrash));
       setTree(next);
       setError(null);
     } catch (e) {
@@ -116,7 +116,7 @@ export function App() {
 
   const refreshRegistry = useCallback(async () => {
     try {
-      const next = await provider.listWorkspaces();
+      const next = await retryUntilInitialized(() => provider.listWorkspaces());
       setRegistry(next);
     } catch (e) {
       setError(formatError(e));
@@ -1208,6 +1208,31 @@ function joinPath(root: string, rel: string): string {
   const r = root.replace(/[\\/]+$/, "");
   const parts = rel.split(/[\\/]/).filter(Boolean);
   return [r, ...parts].join(sep);
+}
+
+/** True for the backend's retryable pre-init error (`WorkspaceError::NotInitialized`). */
+function isNotInitialized(e: unknown): boolean {
+  return !!e && typeof e === "object" && (e as { kind?: string }).kind === "NotInitialized";
+}
+
+/**
+ * Retry `fn` while it fails with `NotInitialized`. At launch the webview can
+ * call workspace commands before the backend's `setup` has finished filling in
+ * the managed state (observed on Windows after auto-update). The state is always
+ * *managed*, so we never get Tauri's "state not managed" error — we just get a
+ * retryable `NotInitialized` until `setup` completes, typically within a few ms.
+ * Backoff is bounded; any other error rethrows immediately.
+ */
+async function retryUntilInitialized<T>(fn: () => Promise<T>): Promise<T> {
+  const delaysMs = [50, 100, 150, 200, 300, 400, 500, 750, 1000];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (!isNotInitialized(e) || attempt >= delaysMs.length) throw e;
+      await new Promise((r) => setTimeout(r, delaysMs[attempt]));
+    }
+  }
 }
 
 function formatError(e: unknown): string {

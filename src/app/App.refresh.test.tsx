@@ -16,8 +16,19 @@ type InvokeArgs = Record<string, unknown> | undefined;
 const invokeCalls: Array<{ cmd: string; args: InvokeArgs }> = [];
 const listenHandlers: Record<string, (e: { payload: unknown }) => void> = {};
 
+// When > 0, the next N calls to the startup-list commands reject with the
+// retryable `NotInitialized` error, simulating the backend's pre-init window.
+let pendingInitRejections = 0;
+
 function fakeInvoke(cmd: string, args?: InvokeArgs): Promise<unknown> {
   invokeCalls.push({ cmd, args });
+  if (
+    pendingInitRejections > 0 &&
+    (cmd === "cmd_list_workspaces" || cmd === "cmd_list_workspace")
+  ) {
+    pendingInitRejections--;
+    return Promise.reject({ kind: "NotInitialized" });
+  }
   switch (cmd) {
     case "cmd_workspace_info":
       return Promise.resolve({ name: "Test", root: "/ws" });
@@ -71,6 +82,7 @@ import { App } from "./App";
 
 beforeEach(() => {
   invokeCalls.length = 0;
+  pendingInitRejections = 0;
   for (const k of Object.keys(listenHandlers)) delete listenHandlers[k];
 });
 
@@ -78,6 +90,30 @@ describe("file tree refresh", () => {
   test("lists the workspace on mount", async () => {
     render(React.createElement(App));
     await waitFor(() => expect(countCmd("cmd_list_workspace")).toBeGreaterThanOrEqual(1));
+  });
+
+  test("retries the startup load while the backend reports NotInitialized", async () => {
+    // Reproduce the Windows-after-update race: the webview calls workspace
+    // commands before the backend's `setup` has filled in the managed state, so
+    // the first calls reject with the retryable `NotInitialized` error. The app
+    // should keep retrying and recover once the backend is ready — not surface
+    // an error to the user.
+    pendingInitRejections = 4; // a couple of rejections on each startup command
+
+    render(React.createElement(App));
+
+    // Despite the early NotInitialized rejections, the workspace eventually
+    // lists successfully — the retry backed off and re-called until the fake
+    // backend stopped rejecting.
+    await waitFor(
+      () => {
+        expect(pendingInitRejections).toBe(0);
+        const ok = invokeCalls.filter((c) => c.cmd === "cmd_list_workspace").length;
+        // At least one rejected call + one that succeeded.
+        expect(ok).toBeGreaterThanOrEqual(2);
+      },
+      { timeout: 2000 },
+    );
   });
 
   test("workspace:changed event triggers a tree refresh", async () => {
