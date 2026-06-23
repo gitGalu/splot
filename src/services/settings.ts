@@ -33,6 +33,9 @@ export interface Settings {
   typewriterMode: boolean;
   /** When true, paragraphs other than the one with the caret are dimmed. */
   focusMode: boolean;
+  /** When true, inline markdown markers (*, _, `, ###) are hidden except on
+   *  the line touched by the caret, for a cleaner "live preview" reading. */
+  concealMarkup: boolean;
   /** Global shortcut spec (e.g. "Mod+Shift+I") that opens Quick Capture.
    *  Stored in the platform-neutral spec form used across the app; translated
    *  to Tauri's accelerator syntax at the service boundary. */
@@ -68,6 +71,7 @@ const DEFAULTS: Settings = {
   wheelZoom: true,
   typewriterMode: false,
   focusMode: false,
+  concealMarkup: false,
   quickCaptureShortcut: QUICK_CAPTURE_DEFAULT_SHORTCUT,
   quickCaptureEnabled: true,
 };

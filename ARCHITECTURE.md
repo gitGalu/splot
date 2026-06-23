@@ -40,7 +40,7 @@ Splot's foundation is deliberately small. Most of the thought has gone into *bou
 - `src/i18n/i18n.ts` — minimal flat-key i18n, currently Polish only.
 - `src/app/App.tsx` — orchestration only: state machine for open-file/dirty/save, wires services to the UI, owns the global keymap and command registry.
 - `src/features/workspace/` — sidebar tree, switcher, move/trash modals.
-- `src/features/editor/` — CodeMirror 6 host plus extensions: `paragraph-selection`, `task-toggle` (clickable checkboxes + auto-sort), `links` (URL detection + click-to-open), `theme`.
+- `src/features/editor/` — CodeMirror 6 host plus extensions: `paragraph-selection`, `task-toggle` (clickable checkboxes + auto-sort), `links` (URL detection + click-to-open), `conceal` (hide markdown markers, reveal on caret line), `theme`.
 - `src/features/quickopen/` — file picker, content search, "new file" mode.
 - `src/features/commands/CommandPalette.tsx` — searchable command list, populated by `App.tsx`.
 - `src/features/settings/SettingsPanel.tsx`, `src/features/help/HelpModal.tsx` — modal panels.
@@ -71,6 +71,7 @@ CodeMirror 6 is configured as a **prose editor**, not a code editor:
 - No gutters, no line numbers, no active-line highlight.
 - Configurable type stack (serif default — `Iowan Old Style` / `Palatino` / `Georgia`) with a relaxed line-height.
 - Restrained markdown highlighting — heading weight, emphasis italic, link accent. No rainbow.
+- Optional "conceal markup" (live preview): hides inline markers (`*`, `_`, `` ` ``) and ATX heading `#`s, revealing them only on the line touched by the caret. Editing stays fully live — it only changes what's drawn. Toggled by command / `Mod+Shift+H`.
 - Reading measure of 72ch by default; full-panel width is opt-out via settings.
 - Triple-click and `Mod+Shift+A` select the current paragraph.
 - Markdown task lists get clickable checkboxes; `Mod+Enter` toggles the task at the caret. An optional setting auto-sinks completed items to the end of their list.

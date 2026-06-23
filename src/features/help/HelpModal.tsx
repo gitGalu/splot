@@ -48,6 +48,7 @@ const SECTIONS: Section[] = [
       { spec: "Mod+B", labelKey: "help.view.toggleSidebar" },
       { spec: "Mod+Shift+T", labelKey: "help.view.typewriter" },
       { spec: "Mod+Shift+F", labelKey: "help.view.focus" },
+      { spec: "Mod+Shift+H", labelKey: "help.view.conceal" },
       { spec: "Mod+=", labelKey: "help.view.zoomIn" },
       { spec: "Mod+-", labelKey: "help.view.zoomOut" },
       { spec: "Mod+0", labelKey: "help.view.zoomReset" },

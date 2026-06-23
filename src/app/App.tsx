@@ -77,6 +77,7 @@ export function App() {
     showTrash,
     typewriterMode,
     focusMode,
+    concealMarkup,
     quickCaptureShortcut,
     quickCaptureEnabled,
   } = useSettings();
@@ -591,6 +592,9 @@ export function App() {
       } else if (key === "f" && e.shiftKey) {
         e.preventDefault();
         setSetting("focusMode", !getSettings().focusMode);
+      } else if (key === "h" && e.shiftKey) {
+        e.preventDefault();
+        setSetting("concealMarkup", !getSettings().concealMarkup);
       } else if (e.key === "/") {
         e.preventDefault();
         setHelpOpen((v) => !v);
@@ -789,6 +793,15 @@ export function App() {
         run: () => setSetting("focusMode", !focusMode),
       },
       {
+        id: "view.conceal",
+        label: concealMarkup
+          ? t("cmd.view.concealOff")
+          : t("cmd.view.concealOn"),
+        group: VIEW,
+        hint: formatShortcutString("Mod+Shift+H"),
+        run: () => setSetting("concealMarkup", !concealMarkup),
+      },
+      {
         id: "settings.open",
         label: t("cmd.settings.open"),
         group: VIEW,
@@ -943,6 +956,7 @@ export function App() {
     registry,
     typewriterMode,
     focusMode,
+    concealMarkup,
     quickCaptureShortcut,
     quickCaptureEnabled,
     openQuickCapture,
@@ -1029,6 +1043,19 @@ export function App() {
               })}
             >
               {t("header.focus.badge")}
+            </span>
+          ) : null}
+          {concealMarkup ? (
+            <span
+              className="header-mode"
+              title={t("header.conceal.title", {
+                shortcut: formatShortcutString("Mod+Shift+H"),
+              })}
+              aria-label={t("header.conceal.title", {
+                shortcut: formatShortcutString("Mod+Shift+H"),
+              })}
+            >
+              {t("header.conceal.badge")}
             </span>
           ) : null}
           <button

@@ -14,6 +14,7 @@ import { lineCommandsKeymap } from "./line-commands";
 import { inlineCalcExtension } from "./inline-calc";
 import { typewriterExtension } from "./typewriter";
 import { focusModeExtension } from "./focus-mode";
+import { concealMarkupExtension } from "./conceal";
 import { FONT_STACKS, getSettings, useSettings } from "../../services/settings";
 import { getCursor, setCursor } from "../../services/cursorMemory";
 
@@ -49,6 +50,7 @@ export function EditorPane({
     inlineCalc,
     typewriterMode,
     focusMode,
+    concealMarkup,
   } = useSettings();
 
   useEffect(() => {
@@ -131,6 +133,7 @@ export function EditorPane({
       // preference takes effect without rebuilding the editor.
       extensions.push(taskToggleWithAutoSort(() => getSettings().autoSortDoneTasks));
       if (inlineCalc) extensions.push(inlineCalcExtension());
+      if (concealMarkup) extensions.push(concealMarkupExtension);
     }
 
     // Restore the last-known caret offset for this file, clamped to the
@@ -176,7 +179,7 @@ export function EditorPane({
     };
     // Recreate the editor when the file identity changes so extensions match.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file.path, ideLineShortcuts, inlineCalc, typewriterMode, focusMode]);
+  }, [file.path, ideLineShortcuts, inlineCalc, typewriterMode, focusMode, concealMarkup]);
 
   // Keep the document in sync when the outer value is replaced (e.g. after save
   // revert or switching files that reuse the same path — rare, but correct).
