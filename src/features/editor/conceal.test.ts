@@ -41,6 +41,32 @@ function concealedSlices(doc: string, caretLine = 1): string[] {
   return slices;
 }
 
+/** Like concealedSlices but with an explicit anchor→head selection (offsets). */
+function concealedSlicesForSelection(
+  doc: string,
+  anchor: number,
+  head: number,
+): string[] {
+  const view = new EditorView({
+    state: EditorState.create({
+      doc,
+      selection: EditorSelection.range(anchor, head),
+      extensions: [markdown({ extensions: [Strikethrough] }), concealMarkupExtension],
+    }),
+  });
+  const slices: string[] = [];
+  const set = view.plugin(concealMarkupExtension as any)?.decorations;
+  if (set) {
+    const iter = set.iter();
+    while (iter.value) {
+      if (iter.to > iter.from) slices.push(doc.slice(iter.from, iter.to));
+      iter.next();
+    }
+  }
+  view.destroy();
+  return slices;
+}
+
 test("hides bold/italic/code/strikethrough markers", () => {
   const slices = concealedSlices("**b** _i_ `c` ~~s~~\nx", 2);
   assert.deepEqual(slices, ["**", "**", "_", "_", "`", "`", "~~", "~~"]);
@@ -75,4 +101,16 @@ test("markers on the caret line are revealed (not concealed)", () => {
   // Caret on line 1 → its **bold** stays visible.
   const slices = concealedSlices("**b**\nx", 1);
   assert.deepEqual(slices, []);
+});
+
+test("a multi-line selection only reveals the head line, not the whole span", () => {
+  // doc lines: 1:"**a**" 2:"**b**" 3:"**c**"
+  // Selection anchored on line 1, head on line 3. Only line 3 should reveal;
+  // lines 1 and 2 stay concealed.
+  const doc = "**a**\n**b**\n**c**";
+  const anchor = 0; // start of line 1
+  const head = doc.length; // end of line 3
+  const slices = concealedSlicesForSelection(doc, anchor, head);
+  // Lines 1 and 2 each contribute two markers; line 3 (head) reveals.
+  assert.deepEqual(slices, ["**", "**", "**", "**"]);
 });

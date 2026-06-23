@@ -23,9 +23,12 @@ import { syntaxTree } from "@codemirror/language";
  *  - blockquote markers (`>`) → hidden, with a CSS left rule on the line
  *  - horizontal rules (`---`, `***`, `___`) → a drawn separator
  *
- * Markers on the line(s) touched by the selection are *revealed* so the caret
- * never lands in invisible text and editing the syntax stays comfortable. This
- * is the standard "Live Preview" behaviour.
+ * Markers on the line holding a cursor (the `head` of each selection range)
+ * are *revealed* so the caret never lands in invisible text and editing the
+ * syntax stays comfortable. We key off the caret line only — not the whole
+ * selected span — so dragging a large selection (or Select All) doesn't flash
+ * every line back to raw markdown. This is the standard "Live Preview"
+ * behaviour.
  */
 
 // Lezer node names (from @codemirror/lang-markdown) for the inline marker
@@ -75,20 +78,20 @@ class RuleWidget extends WidgetType {
 }
 const horizontalRule = Decoration.replace({ widget: new RuleWidget() });
 
-function lineNumbersTouchedBySelection(view: EditorView): Set<number> {
+function caretLineNumbers(view: EditorView): Set<number> {
   const lines = new Set<number>();
   const { doc } = view.state;
+  // Reveal only the line each caret sits on, so a wide selection or Select All
+  // doesn't unhide every marker in between.
   for (const range of view.state.selection.ranges) {
-    const first = doc.lineAt(range.from).number;
-    const last = doc.lineAt(range.to).number;
-    for (let n = first; n <= last; n++) lines.add(n);
+    lines.add(doc.lineAt(range.head).number);
   }
   return lines;
 }
 
 function buildDecorations(view: EditorView): DecorationSet {
   const { doc } = view.state;
-  const active = lineNumbersTouchedBySelection(view);
+  const active = caretLineNumbers(view);
 
   // Decorations must be added in start-position order. Line decorations
   // (the quote rule) and mark/replace decorations can interleave, so collect
