@@ -417,6 +417,24 @@
   transition: opacity 200ms ease;
 }
 
+/* Live-preview (conceal markup) substitutions. */
+.cm-conceal-bullet {
+  color: var(--color-text-muted);
+}
+
+.cm-conceal-quote {
+  border-left: 2px solid var(--color-border);
+  padding-left: var(--space-3);
+}
+
+.cm-conceal-rule {
+  display: inline-block;
+  width: 100%;
+  border-top: 1px solid var(--color-border);
+  /* Vertically center the rule against the line box. */
+  vertical-align: middle;
+}
+
 .header-help {
   margin-left: auto;
   width: 22px;

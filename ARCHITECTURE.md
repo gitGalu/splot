@@ -71,7 +71,7 @@ CodeMirror 6 is configured as a **prose editor**, not a code editor:
 - No gutters, no line numbers, no active-line highlight.
 - Configurable type stack (serif default — `Iowan Old Style` / `Palatino` / `Georgia`) with a relaxed line-height.
 - Restrained markdown highlighting — heading weight, emphasis italic, link accent. No rainbow.
-- Optional "conceal markup" (live preview): hides inline markers (`*`, `_`, `` ` ``) and ATX heading `#`s, revealing them only on the line touched by the caret. Editing stays fully live — it only changes what's drawn. Toggled by command / `Mod+Shift+H`.
+- Optional "conceal markup" (live preview): hides/substitutes markdown markers — inline emphasis/code/strikethrough, ATX heading `#`s, link `[..](url)` → label, unordered bullets → `•`, blockquote `>` → left rule, and `---` → a separator — revealing them only on the line touched by the caret. Editing stays fully live — it only changes what's drawn. Toggled by command / `Mod+Shift+H`. (GFM strikethrough parsing is enabled here too, since the highlight style already styles it.)
 - Reading measure of 72ch by default; full-panel width is opt-out via settings.
 - Triple-click and `Mod+Shift+A` select the current paragraph.
 - Markdown task lists get clickable checkboxes; `Mod+Enter` toggles the task at the caret. An optional setting auto-sinks completed items to the end of their list.

@@ -3,6 +3,7 @@ import { EditorSelection, EditorState, type Extension } from "@codemirror/state"
 import { EditorView, keymap } from "@codemirror/view";
 import { history, defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import { Strikethrough } from "@lezer/markdown";
 import { syntaxHighlighting } from "@codemirror/language";
 import { search, searchKeymap } from "@codemirror/search";
 import type { FileRef } from "../../types/workspace";
@@ -128,7 +129,10 @@ export function EditorPane({
     ];
 
     if (isMarkdown) {
-      extensions.push(markdown());
+      // Enable GFM strikethrough (`~~text~~`) parsing only — not the full GFM
+      // bundle, whose TaskList would collide with our own task-toggle handling.
+      // splotHighlightStyle already styles the `strikethrough` tag.
+      extensions.push(markdown({ extensions: [Strikethrough] }));
       // Read the setting freshly on every transaction so toggling the
       // preference takes effect without rebuilding the editor.
       extensions.push(taskToggleWithAutoSort(() => getSettings().autoSortDoneTasks));
