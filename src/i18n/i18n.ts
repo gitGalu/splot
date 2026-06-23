@@ -192,6 +192,9 @@ const pl: Dict = {
   "settings.inlineCalc.label": "Obliczenia w tekście",
   "settings.inlineCalc.help":
     "Gdy wpiszesz np. 2+2= na końcu wiersza, Splot pokaże wynik jako podpowiedź. Tab wstawia wynik do tekstu. Obsługa: + − × ÷ % ^, nawiasy, stałe (pi, e, tau), funkcje (sqrt, sin, log, min, max…), „100+20%” jako 120, oraz daty: 4.4.2024+6 dni, 31.01.2024+1 mies, 10.4.2024−4.4.2024.",
+  "settings.concealMarkup.label": "Ukrywaj znaczniki Markdown (live preview)",
+  "settings.concealMarkup.help":
+    "Chowa znaczniki **, _, `, ###, > oraz nawiasy linków, a punktory pokazuje jako •. Znaczniki wracają na wierszu z kursorem, więc tekst pozostaje w pełni edytowalny. Przełącznik: {shortcut}.",
   "settings.section.appearance": "Wygląd",
   "settings.theme.label": "Motyw",
   "settings.theme.system": "Systemowy",
