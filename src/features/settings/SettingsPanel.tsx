@@ -310,6 +310,21 @@ export function SettingsPanel({ onClose }: Props) {
                 </span>
               </span>
             </label>
+            <label className="settings-row">
+              <input
+                type="checkbox"
+                checked={settings.taskTimestamps}
+                onChange={(e) => setSetting("taskTimestamps", e.target.checked)}
+              />
+              <span className="settings-row-main">
+                <span className="settings-row-label">
+                  {t("settings.taskTimestamps.label")}
+                </span>
+                <span className="settings-row-help">
+                  {t("settings.taskTimestamps.help")}
+                </span>
+              </span>
+            </label>
             <div className="settings-row settings-row--stack">
               <div className="settings-row-main">
                 <span className="settings-row-label">

@@ -13,6 +13,7 @@ import {
   WidgetType,
   keymap,
 } from "@codemirror/view";
+import { stampMarker } from "./task-stamp";
 
 /**
  * Toggleable markdown task lists.
@@ -63,7 +64,7 @@ function matchTaskLine(doc: Text, lineNumber: number): TaskMatch | null {
  * containing `pos`. Returns the transaction spec, or null if the line is
  * not a list item at all.
  */
-function toggleSpecAt(state: EditorState, pos: number) {
+function toggleSpecAt(state: EditorState, pos: number, stamp: boolean) {
   const line = state.doc.lineAt(pos);
   const task = matchTaskLine(state.doc, line.number);
   if (task) {
@@ -79,18 +80,38 @@ function toggleSpecAt(state: EditorState, pos: number) {
   const promote = LIST_RE.exec(line.text);
   if (promote) {
     const insertAt = line.from + promote[1].length;
-    return {
-      changes: { from: insertAt, to: insertAt, insert: "[ ] " },
-      userEvent: "input.task.create",
-    };
+    // When stamping is on, date the freshly created task. The checkbox is
+    // inserted at the marker; the stamp is appended at end-of-line so the two
+    // changes don't overlap.
+    const changes: { from: number; to: number; insert: string }[] = [
+      { from: insertAt, to: insertAt, insert: "[ ] " },
+    ];
+    if (stamp) {
+      changes.push({ from: line.to, to: line.to, insert: stampMarker() });
+    }
+    return { changes, userEvent: "input.task.create" };
   }
   return null;
 }
 
-/** Command: toggle the task on the current line. */
+/**
+ * Command: toggle the task on the current line. When `stamp` is true, a task
+ * created from a plain list item is dated at end-of-line.
+ */
+export function makeToggleTask(stamp: () => boolean) {
+  return (view: EditorView): boolean => {
+    const pos = view.state.selection.main.head;
+    const spec = toggleSpecAt(view.state, pos, stamp());
+    if (!spec) return false;
+    view.dispatch(spec);
+    return true;
+  };
+}
+
+/** Command: toggle the task on the current line (no stamping). */
 export const toggleTask = (view: EditorView): boolean => {
   const pos = view.state.selection.main.head;
-  const spec = toggleSpecAt(view.state, pos);
+  const spec = toggleSpecAt(view.state, pos, false);
   if (!spec) return false;
   view.dispatch(spec);
   return true;
@@ -131,7 +152,7 @@ class CheckboxWidget extends WidgetType {
     });
     input.addEventListener("click", (e) => {
       e.preventDefault();
-      const spec = toggleSpecAt(view.state, this.from);
+      const spec = toggleSpecAt(view.state, this.from, false);
       if (spec) view.dispatch(spec);
     });
     wrap.appendChild(input);
@@ -365,6 +386,15 @@ export const taskToggleKeymap = Prec.high(
   ]),
 );
 
+/** Stamp-aware variant of the keymap: dates tasks created via `Mod-Enter`. */
+function taskToggleKeymapStamping(shouldStamp: () => boolean): Extension {
+  return Prec.high(
+    keymap.of([
+      { key: "Mod-Enter", run: makeToggleTask(shouldStamp), preventDefault: true },
+    ]),
+  );
+}
+
 /**
  * Listener factory: when a transaction toggles a checkbox AND the provided
  * predicate returns true, run `sortTasks` after a short debounce. The delay
@@ -440,7 +470,18 @@ export const taskToggle: Extension = [taskToggleKeymap, taskCheckboxes];
  * whenever a checkbox is toggled on. `shouldAutoSort` is read on every
  * transaction so the preference can be changed at runtime without rebuilding
  * the editor.
+ *
+ * `shouldStamp` (optional) gates dating of tasks created via `Mod-Enter`: when
+ * provided, the stamp-aware keymap is used so creating a task records its
+ * creation time. Both predicates are read per-transaction, so the toggles take
+ * effect without rebuilding the editor.
  */
-export function taskToggleWithAutoSort(shouldAutoSort: () => boolean): Extension {
-  return [taskToggleKeymap, taskCheckboxes, autoSortListener(shouldAutoSort)];
+export function taskToggleWithAutoSort(
+  shouldAutoSort: () => boolean,
+  shouldStamp?: () => boolean,
+): Extension {
+  const keymapExt = shouldStamp
+    ? taskToggleKeymapStamping(shouldStamp)
+    : taskToggleKeymap;
+  return [keymapExt, taskCheckboxes, autoSortListener(shouldAutoSort)];
 }

@@ -36,6 +36,9 @@ export interface Settings {
   /** When true, inline markdown markers (*, _, `, ###) are hidden except on
    *  the line touched by the caret, for a cleaner "live preview" reading. */
   concealMarkup: boolean;
+  /** When true, task lines get a creation-date stamp (stored as an HTML
+   *  comment, rendered as muted right-aligned text). Set once, never updated. */
+  taskTimestamps: boolean;
   /** Global shortcut spec (e.g. "Mod+Shift+I") that opens Quick Capture.
    *  Stored in the platform-neutral spec form used across the app; translated
    *  to Tauri's accelerator syntax at the service boundary. */
@@ -72,6 +75,7 @@ const DEFAULTS: Settings = {
   typewriterMode: false,
   focusMode: false,
   concealMarkup: false,
+  taskTimestamps: false,
   quickCaptureShortcut: QUICK_CAPTURE_DEFAULT_SHORTCUT,
   quickCaptureEnabled: true,
 };

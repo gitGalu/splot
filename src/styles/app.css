@@ -592,6 +592,19 @@
   text-decoration-thickness: 1px;
 }
 
+/* Task creation-date stamp: muted, pushed to the right edge of the line. The
+   marker text itself (`<!-- t:... -->`) is concealed; this is its rendering. */
+.cm-task-stamp {
+  float: right;
+  margin-left: var(--space-4);
+  color: var(--color-text-faint);
+  font-size: 0.78em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  white-space: nowrap;
+  user-select: none;
+}
+
 /* Search panel (CodeMirror @codemirror/search) ----------------------------- */
 
 .cm-panels {

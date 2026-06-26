@@ -10,6 +10,7 @@ import type { FileRef } from "../../types/workspace";
 import { splotEditorTheme, splotHighlightStyle } from "./theme";
 import { paragraphSelection } from "./paragraph-selection";
 import { taskToggleWithAutoSort } from "./task-toggle";
+import { taskStamps } from "./task-stamp";
 import { linkExtension } from "./links";
 import { lineCommandsKeymap } from "./line-commands";
 import { inlineCalcExtension } from "./inline-calc";
@@ -52,6 +53,7 @@ export function EditorPane({
     typewriterMode,
     focusMode,
     concealMarkup,
+    taskTimestamps,
   } = useSettings();
 
   useEffect(() => {
@@ -135,7 +137,15 @@ export function EditorPane({
       extensions.push(markdown({ extensions: [Strikethrough] }));
       // Read the setting freshly on every transaction so toggling the
       // preference takes effect without rebuilding the editor.
-      extensions.push(taskToggleWithAutoSort(() => getSettings().autoSortDoneTasks));
+      extensions.push(
+        taskToggleWithAutoSort(
+          () => getSettings().autoSortDoneTasks,
+          () => getSettings().taskTimestamps,
+        ),
+      );
+      if (taskTimestamps) {
+        extensions.push(taskStamps(() => getSettings().taskTimestamps));
+      }
       if (inlineCalc) extensions.push(inlineCalcExtension());
       if (concealMarkup) extensions.push(concealMarkupExtension);
     }
@@ -183,7 +193,7 @@ export function EditorPane({
     };
     // Recreate the editor when the file identity changes so extensions match.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file.path, ideLineShortcuts, inlineCalc, typewriterMode, focusMode, concealMarkup]);
+  }, [file.path, ideLineShortcuts, inlineCalc, typewriterMode, focusMode, concealMarkup, taskTimestamps]);
 
   // Keep the document in sync when the outer value is replaced (e.g. after save
   // revert or switching files that reuse the same path — rare, but correct).

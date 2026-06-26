@@ -195,6 +195,9 @@ const pl: Dict = {
   "settings.concealMarkup.label": "Ukrywaj znaczniki Markdown (live preview)",
   "settings.concealMarkup.help":
     "Chowa znaczniki **, _, `, ###, > oraz nawiasy linków, a punktory pokazuje jako •. Znaczniki wracają na wierszu z kursorem, więc tekst pozostaje w pełni edytowalny. Przełącznik: {shortcut}.",
+  "settings.taskTimestamps.label": "Data dodania zadania",
+  "settings.taskTimestamps.help":
+    "Zapisuje datę utworzenia każdego zadania (kratki TODO) i pokazuje ją jako szary tekst przy prawej krawędzi wiersza. Data jest ustawiana raz i się nie zmienia. W pliku przechowywana jest jako niewidoczny komentarz HTML, więc nie zaśmieca tekstu w innych edytorach. Surowy zapis pojawia się na wierszu z kursorem.",
   "settings.section.appearance": "Wygląd",
   "settings.theme.label": "Motyw",
   "settings.theme.system": "Systemowy",
